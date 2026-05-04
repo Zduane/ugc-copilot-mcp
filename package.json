@@ -31,7 +31,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "test": "vitest run --exclude test/smoke.test.ts",
+    "smoke": "UGC_RUN_SMOKE=1 vitest run test/smoke.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",

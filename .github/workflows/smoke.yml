@@ -1,0 +1,84 @@
+name: Smoke (real backend)
+
+# Runs the smoke test suite (test/smoke.test.ts) against the real production
+# backend. Costs ~3 credits per run on the configured smoke account.
+#
+# Required repo secret:
+#   UGC_COPILOT_API_KEY_SMOKE — a ugc_live_... key for the smoke-test account
+#
+# If the secret is missing, the auth-tier tests skip cleanly and only the
+# 4 free-tier tests run (rate-limited 3-5/day per IP — may fail on shared
+# GHA runner IPs that already hit the cap).
+
+on:
+  schedule:
+    # Weekly on Monday at 14:00 UTC (07:00 PT). Off-peak; spreads cost.
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+    # Manual trigger from the Actions tab — useful right after publishing a new version.
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    name: Smoke (free + auth tier)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke
+        env:
+          UGC_COPILOT_API_KEY: ${{ secrets.UGC_COPILOT_API_KEY_SMOKE }}
+        run: npm run smoke
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `Smoke failure (${today})`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'smoke-fail',
+            });
+            if (existing.data.some(i => i.title === title)) {
+              console.log('Smoke-fail issue already open for today.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                'The weekly smoke run hit a real-backend failure.',
+                '',
+                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                'Common causes:',
+                '- Backend validation drift (a field that was optional is now required, or vice versa)',
+                '- API key rotated / revoked / out of credits',
+                '- Free-tier IP rate limit (GHA runner IPs share state across repos)',
+                '',
+                'To reproduce locally:',
+                '1. `cd ~/UGC-Copilot-mcp`',
+                '2. `UGC_COPILOT_API_KEY=ugc_live_... npm run smoke`',
+                '',
+                'If the failure is contract drift, patch affected tools in src/tools/ and ship 0.1.x.',
+              ].join('\n'),
+              labels: ['smoke-fail'],
+            });
