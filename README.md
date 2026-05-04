@@ -15,7 +15,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "ugc-copilot": {
       "command": "npx",
-      "args": ["-y", "@ugccopilot/mcp"],
+      "args": ["-y", "@ugccopilot/mcp@latest"],
       "env": {
         "UGC_COPILOT_API_KEY": "ugc_live_..."
       }
@@ -35,7 +35,7 @@ Add to `.cursor/mcp.json` in your project (or to user settings):
   "mcpServers": {
     "ugc-copilot": {
       "command": "npx",
-      "args": ["-y", "@ugccopilot/mcp"],
+      "args": ["-y", "@ugccopilot/mcp@latest"],
       "env": {
         "UGC_COPILOT_API_KEY": "ugc_live_..."
       }
@@ -46,7 +46,20 @@ Add to `.cursor/mcp.json` in your project (or to user settings):
 
 ### Cline / Continue / Zed
 
-Same pattern — point your MCP client at `npx -y @ugccopilot/mcp` with the env var set.
+Same pattern — point your MCP client at `npx -y @ugccopilot/mcp@latest` with the env var set.
+
+### Forcing a version refresh
+
+Claude Desktop spawns the MCP server once per launch and `npx` caches resolved packages in `~/.npm/_npx/`. After we publish a new version, your running session keeps using the old one until the process restarts and npx re-resolves.
+
+If a Claude Desktop restart isn't picking up a newer version:
+
+```bash
+rm -rf ~/.npm/_npx
+# Then quit Claude Desktop fully (⌘Q on macOS) and relaunch.
+```
+
+Pinning `@latest` in your config (as above) makes npx more aggressive about checking the registry on each cold start. If you'd rather lock to a specific version for stability, replace `@latest` with the exact version, e.g. `@ugccopilot/mcp@0.1.1`.
 
 ## Tools
 
