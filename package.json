@@ -60,7 +60,7 @@
   "homepage": "https://ugccopilot.ai/api/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Zduane/ugc-copilot-mcp.git"
+    "url": "git+https://github.com/Zduane/ugc-copilot-mcp.git"
   },
   "bugs": {
     "url": "https://github.com/Zduane/ugc-copilot-mcp/issues",
