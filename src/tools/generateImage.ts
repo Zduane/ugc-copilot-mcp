@@ -30,7 +30,9 @@ export const generateImage: ToolDefinition<Input> = {
   name: 'generate_image',
   description:
     'Generate a scene image from a visual prompt. Returns a base64 data URI or a Firebase Storage URL plus mime type. ' +
-    'Cost: 1 credit standard / 2 credits hq. Requires UGC_COPILOT_API_KEY.',
+    'Cost: 1 credit standard / 2 credits hq. Requires UGC_COPILOT_API_KEY. ' +
+    'NOTE: When the backend returns inline base64, a single image can be 600KB-1MB which consumes a lot of agent context. ' +
+    "Call sparingly; if you only need to display the image, prefer rendering through the web app or a follow-up tool that returns a URL.",
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const body: Record<string, unknown> = { visualPrompt: input.visualPrompt };

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily at 13:00 UTC (06:00 PT) — drift check only.
+    - cron: '0 13 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (typecheck + vitest + build)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  drift-check:
+    name: OpenAPI drift check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch latest OpenAPI from production
+        run: npm run fetch-openapi
+
+      - name: Regenerate types
+        run: npm run gen-types
+
+      - name: Detect drift
+        id: drift
+        run: |
+          if git diff --quiet src/generated.ts openapi.json 2>/dev/null; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "No drift detected."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "## Drift detected — main repo's OpenAPI changed since last @ugccopilot/mcp release." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+            git diff src/generated.ts openapi.json | head -200 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Open issue if drift detected
+        if: steps.drift.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `OpenAPI drift detected (${today})`;
+            // Don't open duplicate issues if one is already open for the same day.
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'drift',
+            });
+            if (existing.data.some(i => i.title === title)) {
+              console.log('Drift issue already open for today.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                'The daily drift-check job found that the main repo OpenAPI spec has changed since the last @ugccopilot/mcp release.',
+                '',
+                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                'To resolve:',
+                '1. `cd ~/UGC-Copilot-mcp`',
+                '2. `npm run fetch-openapi && npm run gen-types`',
+                '3. Review `git diff src/generated.ts` — if shapes changed, update affected tools in `src/tools/`',
+                '4. Bump version in `package.json` (semver)',
+                '5. `npm publish --access=public`',
+              ].join('\n'),
+              labels: ['drift'],
+            });
