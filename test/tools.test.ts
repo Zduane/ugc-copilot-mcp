@@ -59,33 +59,27 @@ describe('Tool input validation', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('generate_script REJECTS projectMode=podcast-style (backend discards productDescription)', () => {
-    // Regression test for the 0.1.1 bug where Claude Desktop output unrelated
-    // topics — backend drops productDescription in podcast-style/influencer-noproduct
-    // modes, so the AI hallucinates from system-prompt examples.
-    const parsed = generateScript.inputSchema.safeParse({
+  it('generate_script ACCEPTS projectMode=podcast-style after backend Layer B fix', () => {
+    // Layer A's defensive zod refinement (ship'd in source as commit dff30bd
+    // but never reached npm) is now removed because Layer B in the main repo
+    // (PR #352, deployed 2026-05-04) made the backend frame productDescription
+    // as "Topic to discuss" for podcast-style instead of dropping it. Both
+    // commentary modes are now legitimate paths through this tool.
+    expect(generateScript.inputSchema.safeParse({
       productDescription: 'pet grooming brush',
       projectMode: 'podcast-style',
-    });
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) {
-      expect(parsed.error.issues[0]?.message.toLowerCase()).toContain('discard');
-    }
-  });
-
-  it('generate_script REJECTS projectMode=influencer-noproduct (same backend discard)', () => {
-    const parsed = generateScript.inputSchema.safeParse({
+    }).success).toBe(true);
+    expect(generateScript.inputSchema.safeParse({
       productDescription: 'pet grooming brush',
       projectMode: 'influencer-noproduct',
-    });
-    expect(parsed.success).toBe(false);
+    }).success).toBe(true);
   });
 
-  it('generate_script ACCEPTS projectMode=ugc-creator (the recommended mode)', () => {
+  it('generate_script ACCEPTS projectMode=ugc-creator (still the default-recommended mode)', () => {
     const parsed = generateScript.inputSchema.safeParse({
       productDescription: 'pet grooming brush',
       projectMode: 'ugc-creator',
-      tone: 'podcast-style', // tone is fine — it's a delivery hint, not a content-mode
+      tone: 'podcast-style', // tone is a delivery hint, distinct from projectMode
       isFaceless: true,
     });
     expect(parsed.success).toBe(true);

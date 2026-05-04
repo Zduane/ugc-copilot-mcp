@@ -171,6 +171,40 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
   );
 
   itAuth(
+    'generate_script in podcast-style mode produces ON-TOPIC commentary (regression for backend Layer B fix)',
+    { timeout: SMOKE_TIMEOUT_MS },
+    async () => {
+      // Layer B fix (main repo PR #352, deployed 2026-05-04) made the backend
+      // frame productDescription as "Topic to discuss: ..." for podcast-style
+      // instead of dropping it entirely. Before: AI hallucinated unrelated
+      // topics ("AI content polish", "minimalist desks"). After: AI produces
+      // commentary about the supplied topic. This smoke locks in regression
+      // coverage — if Layer B is ever rolled back, this test fires next week.
+      // 1 credit.
+      const result = await generateScript.handler(
+        {
+          productDescription: 'self-cleaning pet grooming brush for shedding dogs',
+          projectMode: 'podcast-style',
+          tone: 'opinionated',
+          platform: 'tiktok',
+          isFaceless: true,
+          targetDurationSec: 20,
+        },
+        client,
+      );
+      const parsed = JSON.parse(result.content[0]!.text);
+      // Stringify the whole response and search for topic-relevant words.
+      // The AI may use "brush", "grooming", "shedding", "dog", "pet" — any of
+      // these in the output proves the topic landed. Hallucinated outputs
+      // ("minimalist desks", "AI productivity") would not contain any.
+      const haystack = JSON.stringify(parsed).toLowerCase();
+      const topicWords = ['brush', 'grooming', 'shedding', 'pet', 'dog', 'fur'];
+      const hits = topicWords.filter((w) => haystack.includes(w));
+      expect(hits.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+
+  itAuth(
     'generate_image succeeds without explicit productDescription (regression for 0.1.0 undefined-rejection bug)',
     { timeout: SMOKE_TIMEOUT_MS },
     async () => {
