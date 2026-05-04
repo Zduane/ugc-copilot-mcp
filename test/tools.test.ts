@@ -17,12 +17,16 @@ const okJson = (body: unknown, status = 200) =>
 
 describe('Tool input validation', () => {
   it('analyze_trends rejects industries outside the allow-list', () => {
-    const parsed = analyzeTrends.inputSchema.safeParse({ industry: 'crypto' });
-    expect(parsed.success).toBe(false);
+    // Backend's FREE_TOOL_INDUSTRIES uses fully-qualified labels like "Pets & Animals",
+    // not slugs. Lowercase or alternate spellings must be rejected at the zod boundary
+    // so we never reach the backend with a wrong shape (real bug from 0.1.0).
+    expect(analyzeTrends.inputSchema.safeParse({ industry: 'crypto' }).success).toBe(false);
+    expect(analyzeTrends.inputSchema.safeParse({ industry: 'fitness' }).success).toBe(false);
+    expect(analyzeTrends.inputSchema.safeParse({ industry: 'pets' }).success).toBe(false);
   });
 
   it('analyze_trends accepts allowed industries', () => {
-    const parsed = analyzeTrends.inputSchema.safeParse({ industry: 'fitness' });
+    const parsed = analyzeTrends.inputSchema.safeParse({ industry: 'Health & Fitness' });
     expect(parsed.success).toBe(true);
   });
 
@@ -67,7 +71,7 @@ describe('Free tool handler wiring', () => {
   it('analyze_trends posts to freeTrendAnalyzer with { data } envelope', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okJson({ data: { trends: [{ productName: 'X' }] } }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    const result = await analyzeTrends.handler({ industry: 'fitness' }, client);
+    const result = await analyzeTrends.handler({ industry: 'Health & Fitness' }, client);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]![0]).toContain('/freeTrendAnalyzer');
     expect(result.isError).toBeUndefined();
@@ -114,7 +118,7 @@ describe('Free tool handler wiring', () => {
     );
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     const result = await generateScriptPreview.handler(
-      { productDescription: 'eco water bottle that tracks hydration', industry: 'fitness' },
+      { productDescription: 'eco water bottle that tracks hydration', industry: 'Health & Fitness' },
       client,
     );
     expect(fetchMock.mock.calls[0]![0]).toContain('/freeGenerateScript');
@@ -142,7 +146,7 @@ describe('Authenticated tool handler wiring', () => {
       return okJson({});
     });
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    const result = await analyzeMarket.handler({ industry: 'fitness' }, client);
+    const result = await analyzeMarket.handler({ industry: 'Health & Fitness' }, client);
     expect(callsByEndpoint).toEqual({ proxyFetchTopSellingProducts: 1, proxyFetchFullMarketAnalysis: 1 });
     expect(result.content[0]!.text).toContain('topSellingProducts');
     expect(result.content[0]!.text).toContain('analysis');
@@ -231,9 +235,37 @@ describe('Authenticated tool handler wiring', () => {
     expect(fetchMock.mock.calls[0]![0]).toContain('/proxyGenerateSceneImage');
     expect(JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string)).toEqual({
       visualPrompt: 'a creator unboxing a bottle',
+      productDescription: '', // Auto-populated; backend rejects undefined.
       quality: 'hq',
       aspectRatio: '9:16',
     });
+  });
+
+  it('generate_image always sends productDescription (regression for 0.1.0 backend rejection)', async () => {
+    // Backend at functions/index.js:7980 rejects when productDescription === undefined
+    // even though it's not in the OpenAPI required list. Real bug from 0.1.0 where
+    // calls failed with "Missing required parameters... Need at least a visual prompt"
+    // despite the visual prompt being valid. Empty string passes the typeof check.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson({ imageData: 'data:image/png;base64,xxx', mimeType: 'image/png' }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await generateImage.handler({ visualPrompt: 'a creator unboxing a fitness band' }, client);
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.productDescription).toBe('');
+  });
+
+  it('generate_image passes through caller-supplied productDescription', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson({ imageData: 'data:image/png;base64,xxx', mimeType: 'image/png' }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await generateImage.handler(
+      { visualPrompt: 'a creator unboxing', productDescription: 'pet grooming brush' },
+      client,
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.productDescription).toBe('pet grooming brush');
   });
 
   it('apply_text_overlay posts overlays array to proxyApplyTextOverlay', async () => {

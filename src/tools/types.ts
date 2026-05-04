@@ -11,25 +11,30 @@ export interface ToolDefinition<TInput = unknown> {
 
 /**
  * Industries supported by the free trend analyzer + script preview endpoints.
- * Backend allow-list at functions/index.js:15270 (FREE_TOOL_INDUSTRIES). Keep in sync.
+ * Backend allow-list at functions/index.js:15278 (FREE_TOOL_INDUSTRIES).
+ *
+ * MUST stay in sync — sending an industry not on the backend list returns
+ * 400 "Invalid industry. Please select from the provided list." (real bug
+ * we hit in 0.1.0 where the local list used slugs like 'pets' but the
+ * backend wants "Pets & Animals"). Drift-check in CI guards this.
  */
 export const FREE_TOOL_INDUSTRIES = [
-  'fitness',
-  'beauty',
-  'skincare',
-  'fashion',
-  'home',
-  'tech',
-  'food',
-  'pets',
-  'baby',
-  'wellness',
-  'gaming',
-  'education',
-  'finance',
-  'travel',
-  'business',
-  'general',
+  'Beauty & Cosmetics',
+  'Fashion & Style',
+  'Food & Recipes',
+  'Gaming & eSports',
+  'Health & Fitness',
+  'DIY & Crafts',
+  'Comedy & Entertainment',
+  'Dance & Music',
+  'Education & Life Hacks',
+  'Pets & Animals',
+  'Personal Finance & Investing',
+  'Tech & Gadgets',
+  'Software & Apps',
+  'Travel & Adventure',
+  'Parenting & Family',
+  'Home & Decor',
 ] as const;
 
 export const PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;

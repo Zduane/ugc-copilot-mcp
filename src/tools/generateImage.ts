@@ -8,6 +8,15 @@ const InputSchema = z.object({
     .min(1)
     .max(4000)
     .describe('Narrative visual prompt for the scene (paragraph style works better than keyword lists).'),
+  productDescription: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe(
+      'Description of the product or subject (1-2 sentences). The backend rejects calls when this field is undefined ' +
+      "even though it's not in the OpenAPI required list — pass an empty string if there's no product. " +
+      'Including a real description anchors the AI to the right subject and reduces generic output.',
+    ),
   quality: z.enum(QUALITIES).default('standard').optional().describe('standard (1 credit) or hq (2 credits).'),
   aspectRatio: z.enum(ASPECT_RATIOS).default('9:16').optional().describe('Aspect ratio.'),
   influencerImageUrl: z.string().url().optional().describe('Optional reference photo URL of the creator.'),
@@ -35,7 +44,15 @@ export const generateImage: ToolDefinition<Input> = {
     "Call sparingly; if you only need to display the image, prefer rendering through the web app or a follow-up tool that returns a URL.",
   inputSchema: InputSchema,
   handler: async (input, client) => {
-    const body: Record<string, unknown> = { visualPrompt: input.visualPrompt };
+    // Backend validation rejects when productDescription === undefined (line 7980 of
+    // functions/index.js as of OpenAPI v2026-04-29). Empty string passes that check.
+    // OpenAPI doesn't list productDescription as required, but the implementation
+    // treats it as "must at least exist". Default to '' so this tool works without
+    // forcing every caller to think about product context.
+    const body: Record<string, unknown> = {
+      visualPrompt: input.visualPrompt,
+      productDescription: input.productDescription ?? '',
+    };
     if (input.quality) body.quality = input.quality;
     if (input.aspectRatio) body.aspectRatio = input.aspectRatio;
     if (input.influencerImageUrl) body.influencerImageUrl = input.influencerImageUrl;

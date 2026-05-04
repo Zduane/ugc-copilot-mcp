@@ -7,7 +7,13 @@ const SceneImageSchema = z
     data: z.string().describe("Base64-encoded image data (no 'data:' prefix)."),
     mimeType: z.string().describe('e.g. "image/png" or "image/jpeg".'),
   })
-  .describe('Optional reference image for image-to-video engines (Kling, Seedance).');
+  .describe(
+    'Reference image for the render. Required by the backend for sora, veo, and kling — ' +
+    "it's the visual seed every engine builds the video around. " +
+    'The only path that runs without sceneImage is seedance text-to-video (engine="seedance" with isFaceless=false). ' +
+    "If you don't have an image, call generate_image first and pass its base64 output here " +
+    "(strip the 'data:image/png;base64,' prefix; the data field expects raw base64 only).",
+  );
 
 const InputSchema = z.object({
   visualPrompt: z.string().min(1).describe('Visual prompt describing the scene to render.'),
@@ -42,7 +48,10 @@ export const renderVideo: ToolDefinition<Input> = {
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
     'Cost varies by engine, quality, and duration: Sora std=18 / hq=65, Veo std=40 / hq=130 (fixed), Kling std~25 / hq~50, Seedance std=18 / hq=35 (8s baselines). ' +
-    'After this returns, call wait_for_video (poll with backoff) or check_video_status (single poll) until done, then fetch_video for the MP4 URL. ' +
+    'IMPORTANT — sceneImage is REQUIRED for sora/veo/kling and for seedance-faceless. ' +
+    'If you do not have an image, the typical chain is: ' +
+    'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
+    'After render_video returns, call wait_for_video (polls with backoff up to ~50s) or check_video_status (single poll) until done, then fetch_video for the MP4 URL. ' +
     'Requires UGC_COPILOT_API_KEY.',
   inputSchema: InputSchema,
   handler: async (input, client) => {
