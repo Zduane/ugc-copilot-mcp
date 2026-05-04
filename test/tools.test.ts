@@ -58,6 +58,38 @@ describe('Tool input validation', () => {
     });
     expect(parsed.success).toBe(false);
   });
+
+  it('generate_script REJECTS projectMode=podcast-style (backend discards productDescription)', () => {
+    // Regression test for the 0.1.1 bug where Claude Desktop output unrelated
+    // topics — backend drops productDescription in podcast-style/influencer-noproduct
+    // modes, so the AI hallucinates from system-prompt examples.
+    const parsed = generateScript.inputSchema.safeParse({
+      productDescription: 'pet grooming brush',
+      projectMode: 'podcast-style',
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.message.toLowerCase()).toContain('discard');
+    }
+  });
+
+  it('generate_script REJECTS projectMode=influencer-noproduct (same backend discard)', () => {
+    const parsed = generateScript.inputSchema.safeParse({
+      productDescription: 'pet grooming brush',
+      projectMode: 'influencer-noproduct',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('generate_script ACCEPTS projectMode=ugc-creator (the recommended mode)', () => {
+    const parsed = generateScript.inputSchema.safeParse({
+      productDescription: 'pet grooming brush',
+      projectMode: 'ugc-creator',
+      tone: 'podcast-style', // tone is fine — it's a delivery hint, not a content-mode
+      isFaceless: true,
+    });
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe('Free tool handler wiring', () => {
