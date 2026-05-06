@@ -10,6 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const DEFAULT_URL = 'https://ugccopilot.ai/.well-known/openapi.json';
+const ALLOWED_HOSTS = new Set(['ugccopilot.ai', 'www.ugccopilot.ai']);
 
 async function main(): Promise<void> {
   const url = process.env.OPENAPI_URL ?? DEFAULT_URL;
@@ -20,6 +21,18 @@ async function main(): Promise<void> {
     const { readFileSync } = await import('node:fs');
     body = readFileSync(new URL(url), 'utf-8');
   } else {
+    // Reject anything that isn't HTTPS to a known host. Build-time output is
+    // committed and republished, so a hijacked or misconfigured fetch would
+    // ship attacker-controlled type schemas to every npx user.
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      throw new Error(`Refused: OPENAPI_URL must use https:// (got ${parsed.protocol})`);
+    }
+    if (!ALLOWED_HOSTS.has(parsed.hostname)) {
+      throw new Error(
+        `Refused: OPENAPI_URL host "${parsed.hostname}" is not in allowlist (${[...ALLOWED_HOSTS].join(', ')}).`,
+      );
+    }
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`Fetch ${url} failed: HTTP ${resp.status}`);
     body = await resp.text();

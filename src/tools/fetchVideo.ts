@@ -3,7 +3,13 @@ import { toolJson } from '../errors.js';
 import { ENGINES, type ToolDefinition } from './types.js';
 
 const InputSchema = z.object({
-  operationName: z.string().describe('Operation handle from render_video.'),
+  videoUri: z
+    .string()
+    .min(1)
+    .describe(
+      'Video URI returned by wait_for_video / check_video_status. For Sora it is the operation handle ' +
+      '(e.g. "video_..."); for Veo it is the upstream generativelanguage.googleapis.com file URL.',
+    ),
   engine: z.enum(ENGINES).describe('Engine that started the render.'),
   duration: z.number().int().min(4).max(20).optional().describe('Original render duration (passed back for trimming).'),
   isExtension: z
@@ -23,12 +29,15 @@ interface FetchResult {
 export const fetchVideo: ToolDefinition<Input> = {
   name: 'fetch_video',
   description:
-    'Get the signed MP4 URL for a completed video render. Returns videoUrl (typical 7-day expiry), mimeType, and isWatermarked flag. ' +
+    'Get the signed MP4 URL for a completed video render. Pass the videoUri returned by wait_for_video or check_video_status. ' +
+    'Returns videoUrl (typical 7-day expiry), mimeType, and isWatermarked flag. ' +
     'For long-term retention, copy the bytes to your own storage on receipt. No credits charged. Requires UGC_COPILOT_API_KEY.',
   inputSchema: InputSchema,
   handler: async (input, client) => {
+    // Backend `proxyFetchVideo` reads `uri` (functions/index.js fetchVideoData
+    // at line ~10130). Translate the public-friendly `videoUri` name on the wire.
     const body: Record<string, unknown> = {
-      operationName: input.operationName,
+      uri: input.videoUri,
       engine: input.engine,
     };
     if (input.duration) body.duration = input.duration;

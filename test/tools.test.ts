@@ -205,17 +205,26 @@ describe('Authenticated tool handler wiring', () => {
     expect(result.content[0]!.text).toContain('hint');
   });
 
-  it('fetch_video does not send Idempotency-Key (read-only)', async () => {
+  it('fetch_video does not send Idempotency-Key and translates videoUri → uri on wire (regression for 0.1.3 backend rejection)', async () => {
+    // Backend at functions/index.js fetchVideoData reads `uri` not `operationName`.
+    // 0.1.3 sent `operationName` and got 400 "A valid 'uri' string and 'engine' string are required."
+    // 0.1.4 input is `videoUri` (matches what wait_for_video returns), translated to `uri` on the wire.
     const fetchMock = vi
       .fn()
       .mockResolvedValue(okJson({ videoUrl: 'https://signed/video.mp4', mimeType: 'video/mp4' }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     await fetchVideo.handler(
-      { operationName: 'op-1', engine: 'veo' },
+      { videoUri: 'video_abc123', engine: 'sora' },
       client,
     );
-    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
     expect(headers['Idempotency-Key']).toBeUndefined();
+    const body = JSON.parse(init.body as string);
+    expect(body.uri).toBe('video_abc123');
+    expect(body.engine).toBe('sora');
+    expect(body.videoUri).toBeUndefined();
+    expect(body.operationName).toBeUndefined();
   });
 
   it('check_video_status does not send Idempotency-Key (read-only)', async () => {
@@ -252,7 +261,7 @@ describe('Authenticated tool handler wiring', () => {
   });
 
   it('generate_image posts visualPrompt and quality to proxyGenerateSceneImage', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okJson({ imageData: 'data:image/png;base64,xxx', mimeType: 'image/png' }));
+    const fetchMock = vi.fn().mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     await generateImage.handler(
       { visualPrompt: 'a creator unboxing a bottle', quality: 'hq', aspectRatio: '9:16' },
@@ -274,7 +283,7 @@ describe('Authenticated tool handler wiring', () => {
     // despite the visual prompt being valid. Empty string passes the typeof check.
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(okJson({ imageData: 'data:image/png;base64,xxx', mimeType: 'image/png' }));
+      .mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     await generateImage.handler({ visualPrompt: 'a creator unboxing a fitness band' }, client);
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
@@ -284,7 +293,7 @@ describe('Authenticated tool handler wiring', () => {
   it('generate_image passes through caller-supplied productDescription', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(okJson({ imageData: 'data:image/png;base64,xxx', mimeType: 'image/png' }));
+      .mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     await generateImage.handler(
       { visualPrompt: 'a creator unboxing', productDescription: 'pet grooming brush' },
@@ -295,19 +304,27 @@ describe('Authenticated tool handler wiring', () => {
   });
 
   it('apply_text_overlay posts overlays array to proxyApplyTextOverlay', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okJson({ videoUrl: 'https://signed/out.mp4', mimeType: 'video/mp4' }));
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ overlayVideoUrl: 'https://signed/out.mp4' }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    await applyTextOverlay.handler(
+    const result = await applyTextOverlay.handler(
       {
         videoUrl: 'https://example.com/in.mp4',
-        overlays: [{ text: 'Hook!', startSec: 0, endSec: 2, position: 'top' }],
+        overlays: [{ text: 'Hook!', startTime: 0, endTime: 2, position: 'top' }],
       },
       client,
     );
     expect(fetchMock.mock.calls[0]![0]).toContain('/proxyApplyTextOverlay');
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
-    expect(body.videoUrl).toBe('https://example.com/in.mp4');
+    // Backend reads `videoUri` (not `videoUrl`) — handler translates the public name on the wire.
+    expect(body.videoUri).toBe('https://example.com/in.mp4');
+    expect(body.videoUrl).toBeUndefined();
     expect(body.overlays).toHaveLength(1);
     expect(body.overlays[0].text).toBe('Hook!');
+    expect(body.overlays[0].startTime).toBe(0);
+    expect(body.overlays[0].endTime).toBe(2);
+    // Handler normalizes backend's `overlayVideoUrl` to the public `videoUrl` shape.
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.videoUrl).toBe('https://signed/out.mp4');
+    expect(payload.overlayVideoUrl).toBeUndefined();
   });
 });

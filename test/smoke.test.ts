@@ -211,6 +211,8 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
       // 1 credit. The 0.1.0 bug: backend rejected this exact call shape (no
       // productDescription) with "Missing required parameters". 0.1.1 auto-defaults
       // productDescription to '' to pass the typeof check.
+      // 0.1.4: backend returns a Firebase Storage HTTPS URL string (not base64).
+      // The tool wraps it as { imageUrl } so the response is JSON-parseable.
       const result = await generateImage.handler(
         {
           visualPrompt:
@@ -221,8 +223,7 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
         client,
       );
       const parsed = JSON.parse(result.content[0]!.text);
-      expect(parsed.imageData).toBeTruthy();
-      expect(parsed.mimeType).toMatch(/^image\//);
+      expect(parsed.imageUrl).toMatch(/^https:\/\/firebasestorage\.googleapis\.com\//);
     },
   );
 

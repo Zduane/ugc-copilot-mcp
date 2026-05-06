@@ -19,9 +19,24 @@ const InputSchema = z.object({
     ),
   quality: z.enum(QUALITIES).default('standard').optional().describe('standard (1 credit) or hq (2 credits).'),
   aspectRatio: z.enum(ASPECT_RATIOS).default('9:16').optional().describe('Aspect ratio.'),
-  influencerImageUrl: z.string().url().optional().describe('Optional reference photo URL of the creator.'),
-  productImageUrl: z.string().url().optional().describe('Optional product photo URL for compositing.'),
-  referenceImageUrl: z.string().url().optional().describe('Generic reference photo to guide style.'),
+  influencerImageUrl: z
+    .string()
+    .url()
+    .refine((u) => u.startsWith('https://'), { message: 'influencerImageUrl must use https://' })
+    .optional()
+    .describe('Optional reference photo URL of the creator.'),
+  productImageUrl: z
+    .string()
+    .url()
+    .refine((u) => u.startsWith('https://'), { message: 'productImageUrl must use https://' })
+    .optional()
+    .describe('Optional product photo URL for compositing.'),
+  referenceImageUrl: z
+    .string()
+    .url()
+    .refine((u) => u.startsWith('https://'), { message: 'referenceImageUrl must use https://' })
+    .optional()
+    .describe('Generic reference photo to guide style.'),
   projectMode: z
     .enum(PROJECT_MODES)
     .optional()
@@ -30,18 +45,12 @@ const InputSchema = z.object({
 
 type Input = z.infer<typeof InputSchema>;
 
-interface ImageResult {
-  imageData: string;
-  mimeType: string;
-}
-
 export const generateImage: ToolDefinition<Input> = {
   name: 'generate_image',
   description:
-    'Generate a scene image from a visual prompt. Returns a base64 data URI or a Firebase Storage URL plus mime type. ' +
+    'Generate a scene image from a visual prompt. Returns a permanent Firebase Storage HTTPS URL (JSON-encoded string). ' +
     'Cost: 1 credit standard / 2 credits hq. Requires UGC_COPILOT_API_KEY. ' +
-    'NOTE: When the backend returns inline base64, a single image can be 600KB-1MB which consumes a lot of agent context. ' +
-    "Call sparingly; if you only need to display the image, prefer rendering through the web app or a follow-up tool that returns a URL.",
+    'The URL is suitable for direct rendering in chat UIs or feeding into render_video as a sceneImage source.',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     // Backend validation rejects when productDescription === undefined (line 7980 of
@@ -59,7 +68,7 @@ export const generateImage: ToolDefinition<Input> = {
     if (input.productImageUrl) body.productImageUrl = input.productImageUrl;
     if (input.referenceImageUrl) body.referenceImageUrl = input.referenceImageUrl;
     if (input.projectMode) body.projectMode = input.projectMode;
-    const result = await client.callApi<ImageResult>('proxyGenerateSceneImage', body);
-    return toolJson(result);
+    const imageUrl = await client.callApi<string>('proxyGenerateSceneImage', body);
+    return toolJson({ imageUrl });
   },
 };

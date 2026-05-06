@@ -149,7 +149,8 @@ export class UgcCopilotClient {
             // Surface the friendly error immediately rather than hang.
             throw err;
           }
-          await sleep(requestedSleepMs);
+          // Add jitter so concurrent clients hitting the same 429 don't all wake at the same instant.
+          await sleep(requestedSleepMs + Math.floor(Math.random() * 500));
           continue;
         }
         throw err;

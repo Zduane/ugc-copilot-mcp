@@ -2,7 +2,7 @@
 
 Official MCP (Model Context Protocol) server for [UGC Copilot](https://ugccopilot.ai). Generate UGC-style video ads end-to-end from Claude Desktop, Cursor, Cline, Zed, or any MCP-compatible agent.
 
-12 tools across free + authenticated tiers wrapping the public REST API. Render with Sora 2, Veo 3.1, Kling O3, or Seedance 2.0. Pay-as-you-go — no subscription required.
+12 tools across free + authenticated tiers wrapping the public REST API. Render with Sora 2, Veo 3.1, Kling 3.0, or Seedance 2.0. Pay-as-you-go — no subscription required.
 
 ## Quick start
 
@@ -98,7 +98,7 @@ PAYG packs (no subscription required): 200 credits / $25, 500 / $50, 2,500 / $20
 Video render costs vary by engine, quality, and duration:
 - Sora 2: 18 std / 65 hq (8s baseline, scales by duration)
 - Veo 3.1: 40 std / 130 hq (fixed cost)
-- Kling O3: 25 std / 50 hq (6.4s baseline)
+- Kling 3.0: 25 std / 50 hq (6.4s baseline)
 - Seedance 2.0: 18 std / 35 hq (4s baseline)
 
 ## Long-running video renders
