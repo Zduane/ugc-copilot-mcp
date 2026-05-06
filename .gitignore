@@ -8,3 +8,11 @@ coverage/
 .vscode/
 .idea/
 *.tsbuildinfo
+
+# Build artifacts regenerated from production OpenAPI spec.
+# `npm run fetch-openapi && npm run gen-types` repopulates them.
+# Nothing in src/ imports from generated.ts, so the build doesn't need it
+# committed. Drift between live backend and spec is caught by `npm run smoke`,
+# not by diffing this file.
+openapi.json
+src/generated.ts
