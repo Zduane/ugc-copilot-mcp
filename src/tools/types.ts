@@ -49,6 +49,7 @@ export const PROJECT_MODES = [
   'product-ad',
   'ugc-creator',
   'podcast-style',
+  'live-broadcast',
   'influencer-noproduct',
   'vlog',
   'clone-video',
