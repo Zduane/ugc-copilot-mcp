@@ -41,6 +41,18 @@ const InputSchema = z.object({
     .enum(PROJECT_MODES)
     .optional()
     .describe('Content mode — affects compositing logic (e.g. own-script disables influencer framing).'),
+  masterIdentityPrompt: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe(
+      'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
+      'no clothing or scene context). When set, the backend injects this verbatim as an [IDENTITY] block at ' +
+      'the top of the Gemini prompt so the same character reappears across every generate_image call. ' +
+      'Pass the same string on each call to keep the character consistent across scenes. ' +
+      'Skipped server-side in faceless mode or when no influencer image is supplied. Cap is 2000 chars; ' +
+      'backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped to prevent prompt-injection escapes.',
+    ),
 });
 
 type Input = z.infer<typeof InputSchema>;
@@ -68,6 +80,7 @@ export const generateImage: ToolDefinition<Input> = {
     if (input.productImageUrl) body.productImageUrl = input.productImageUrl;
     if (input.referenceImageUrl) body.referenceImageUrl = input.referenceImageUrl;
     if (input.projectMode) body.projectMode = input.projectMode;
+    if (input.masterIdentityPrompt) body.masterIdentityPrompt = input.masterIdentityPrompt;
     const imageUrl = await client.callApi<string>('proxyGenerateSceneImage', body);
     return toolJson({ imageUrl });
   },

@@ -34,6 +34,19 @@ const InputSchema = z.object({
   projectMode: z.enum(PROJECT_MODES).optional(),
   productDescription: z.string().optional(),
   influencerDescription: z.string().optional(),
+  masterIdentityPrompt: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe(
+      'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
+      'no clothing or scene context). When set, the engine character block uses this verbatim so the same ' +
+      'person reappears across every render_video call for this character. Pass the same string on each ' +
+      'scene to keep the character consistent. Read by sora / kling / seedance; veo intentionally ignores ' +
+      'it (veo gets identity from sceneImage instead — its safety filter trips on detailed physical ' +
+      'descriptions alongside an I2V reference). Cap is 2000 chars (kling further truncates to 800 due ' +
+      'to its 2500-char total prompt cap); backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped.',
+    ),
 });
 
 type Input = z.infer<typeof InputSchema>;
@@ -67,6 +80,12 @@ export const renderVideo: ToolDefinition<Input> = {
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.productDescription) body.productDescription = input.productDescription;
     if (input.influencerDescription) body.influencerDescription = input.influencerDescription;
+    // Wrap masterIdentityPrompt into the twinContext envelope the backend expects. Surfacing
+    // it as a flat field on this tool keeps the MCP schema simple — twin/identity is a single
+    // string from a caller's perspective, not a nested context object.
+    if (input.masterIdentityPrompt) {
+      body.twinContext = { masterIdentityPrompt: input.masterIdentityPrompt };
+    }
     const result = await client.callApi<StartResult>('proxyStartVideoGeneration', body);
     return toolJson({
       operationName: result.operation.name,
