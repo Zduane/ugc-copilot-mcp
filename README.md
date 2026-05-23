@@ -79,7 +79,7 @@ Pinning `@latest` in your config (as above) makes npx more aggressive about chec
 | `analyze_market` | Trending products + market analysis (composite) | 1 credit |
 | `generate_script` | Full viral script with platform variations | 1 credit |
 | `generate_image` | Scene image from a visual prompt | 1 std / 2 hq |
-| `render_video` | Start an async video render | 18-130 credits |
+| `render_video` | Start an async video render | 9-305 credits |
 | `check_video_status` | Single-shot poll | 0 |
 | `wait_for_video` | Poll with backoff up to ~50s | 0 |
 | `fetch_video` | Get the rendered MP4 URL | 0 |
@@ -98,7 +98,7 @@ PAYG packs (no subscription required): 200 credits / $25, 500 / $50, 2,500 / $20
 Video render costs vary by engine, quality, and duration:
 - Sora 2: 18 std / 65 hq (8s baseline, scales by duration)
 - Veo 3.1: 40 std / 130 hq (fixed cost)
-- Kling 3.0: 25 std / 50 hq (6.4s baseline)
+- Kling 3.0: 32 std / 50 hq / 130 4k (6.4s baseline) — 4K is native, no upscaling
 - Seedance 2.0: 18 std / 35 hq (4s baseline)
 
 ## Long-running video renders

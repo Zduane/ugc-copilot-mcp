@@ -25,7 +25,10 @@ const InputSchema = z.object({
   modelName: z
     .string()
     .describe(
-      'Engine-specific model. Examples: "sora-2", "sora-2-pro", "veo-3.1-generate-preview", "fal-ai/kling-video/o3/standard/image-to-video", "bytedance/seedance-2.0/image-to-video".',
+      'Engine-specific model. Examples: "sora-2", "sora-2-pro", "veo-3.1-generate-preview", ' +
+      '"fal-ai/kling-video/v3/standard/image-to-video", "fal-ai/kling-video/v3/pro/image-to-video", ' +
+      '"fal-ai/kling-video/v3/4k/image-to-video" (native 4K, ~2.5× Pro cost), ' +
+      '"bytedance/seedance-2.0/image-to-video".',
     ),
   sceneImage: SceneImageSchema.optional(),
   duration: z.number().int().min(4).max(20).optional().describe('Render duration in seconds (engine-clamped).'),
@@ -60,7 +63,7 @@ export const renderVideo: ToolDefinition<Input> = {
   name: 'render_video',
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
-    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65, Veo std=40 / hq=130 (fixed), Kling std~25 / hq~50, Seedance std=18 / hq=35 (8s baselines). ' +
+    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65, Veo std=40 / hq=130 (fixed), Kling std=32 / hq=50 / 4k=130, Seedance std=18 / hq=35 (8s baselines). ' +
     'IMPORTANT — sceneImage is REQUIRED for sora/veo/kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
