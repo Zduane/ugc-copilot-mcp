@@ -40,7 +40,12 @@ const InputSchema = z.object({
   projectMode: z
     .enum(PROJECT_MODES)
     .optional()
-    .describe('Content mode — affects compositing logic (e.g. own-script disables influencer framing).'),
+    .describe(
+      'Content mode — affects compositing logic (e.g. own-script disables influencer framing). ' +
+      'projectMode: "creator-intimate" (Mature Mode) requires paid entitlement and prior T&C acceptance ' +
+      'via the web UI — returns 403 mature_mode_paid_required or mature_mode_terms_required otherwise. ' +
+      'Mature Mode prompts are injected automatically by the backend (suggestive framing + platform-safety guardrails).',
+    ),
   masterIdentityPrompt: z
     .string()
     .max(2000)

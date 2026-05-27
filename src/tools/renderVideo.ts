@@ -34,7 +34,15 @@ const InputSchema = z.object({
   duration: z.number().int().min(4).max(20).optional().describe('Render duration in seconds (engine-clamped).'),
   editVideoId: z.string().optional().describe('Sora extend flow — source video ID to extend.'),
   isFaceless: z.boolean().optional(),
-  projectMode: z.enum(PROJECT_MODES).optional(),
+  projectMode: z
+    .enum(PROJECT_MODES)
+    .optional()
+    .describe(
+      'Content mode. NOTE: projectMode: "creator-intimate" (Mature Mode) locks the engine to ' +
+      '"kling" only — passing any other engine returns 400 mode_engine_not_allowed. Also requires ' +
+      'paid entitlement (no trial users) and prior T&C acceptance via the web UI — returns 403 ' +
+      'mature_mode_paid_required or mature_mode_terms_required otherwise.',
+    ),
   productDescription: z.string().optional(),
   influencerDescription: z.string().optional(),
   masterIdentityPrompt: z

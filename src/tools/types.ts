@@ -45,8 +45,25 @@ export const QUALITIES = ['standard', 'hq'] as const;
 
 export const ASPECT_RATIOS = ['1:1', '9:16', '16:9', '4:5'] as const;
 
+/**
+ * Project modes accepted by the backend. Must stay in sync with VALID_PROJECT_MODES in
+ * `functions/constants.js` of the main repo. The deprecated trio (ugc-creator,
+ * influencer-noproduct, vlog) is kept for backwards compatibility — the backend's
+ * normalizeProjectMode maps them to 'creator' on read.
+ *
+ * - 'creator' — canonical creator-led / lifestyle / vlog / haul content. Preferred over
+ *   the deprecated aliases for new integrations.
+ * - 'creator-intimate' — Mature Mode (suggestive-not-explicit photo sets for OnlyFans,
+ *   Fanvue, Instagram subscriber feeds). Requires the user to have paid entitlement AND
+ *   to have accepted the Mature Mode T&C via the web UI. Also locks the video engine to
+ *   'kling' — passing any other engine to /proxyStartVideoGeneration returns 400
+ *   mode_engine_not_allowed.
+ *   API errors specific to this mode: mature_mode_paid_required, mature_mode_terms_required.
+ */
 export const PROJECT_MODES = [
   'product-ad',
+  'creator',
+  'creator-intimate',
   'ugc-creator',
   'podcast-style',
   'live-broadcast',

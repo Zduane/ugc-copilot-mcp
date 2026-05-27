@@ -32,10 +32,11 @@ export const generateScript: ToolDefinition<Input> = {
     "(b) Use this `generate_script` tool when you need full control over `tone`, `platform`, `targetDurationSec`, or AI Twin reuse via `twinId`. " +
     "(c) `projectMode` defaults to 'product-ad', which on the BACKEND requires product images that this MCP tool does not yet expose — " +
     "so calling with default mode returns a validation error unless you pass a `twinId`. " +
-    "For ad-hoc product scripts via this tool, set `projectMode: 'ugc-creator'` and `isFaceless: true`. " +
+    "For ad-hoc product scripts via this tool, set `projectMode: 'creator'` and `isFaceless: true`. " +
     "(d) For commentary content ABOUT a topic (not a sales pitch), set `projectMode: 'podcast-style'` and put the topic in `productDescription`. " +
     "The backend frames it as 'Topic to discuss: <text>' and produces opinionated commentary instead of an ad. " +
-    "Use `projectMode: 'influencer-noproduct'` for lifestyle vignettes where the input is woven in as context rather than centered as a product.",
+    "Use `projectMode: 'creator'` for lifestyle vignettes where the input is woven in as context rather than centered as a product. " +
+    "(e) `projectMode: 'creator-intimate'` (Mature Mode) is gated: requires the calling user to have paid entitlement AND to have accepted the Mature Mode T&C via the web UI. Returns 403 mature_mode_paid_required or mature_mode_terms_required otherwise. Use this mode for suggestive-not-explicit photo-set scripts aimed at OnlyFans / Fanvue / Instagram subscriber feeds.",
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const body: Record<string, unknown> = { productDescription: input.productDescription };
