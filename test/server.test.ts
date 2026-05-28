@@ -10,7 +10,7 @@ describe('createServer', () => {
     delete process.env.UGC_COPILOT_API_KEY;
   });
 
-  it('returns an MCP server that registers all 12 tools', async () => {
+  it('returns an MCP server that registers all 13 tools', async () => {
     const server = createServer({ client: new UgcCopilotClient() });
 
     // Probe internal handlers via the SDK's internal request handling. Since the SDK
@@ -33,7 +33,7 @@ describe('createServer', () => {
     const resp = (await listHandler({ method: 'tools/list', params: {} })) as {
       tools: Array<{ name: string; description: string }>;
     };
-    expect(resp.tools).toHaveLength(12);
+    expect(resp.tools).toHaveLength(13);
     const generateScript = resp.tools.find((t) => t.name === 'generate_script');
     expect(generateScript?.description).toContain('UGC_COPILOT_API_KEY is not set');
     const analyzeTrends = resp.tools.find((t) => t.name === 'analyze_trends');

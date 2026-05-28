@@ -14,8 +14,8 @@
  * the 0.1.1 commit message for details. These smoke tests exercise the real
  * request/response shape so future drift surfaces fast.
  *
- * **Cost per run:** ~3 credits (one each: analyze_market, generate_script,
- * generate_image standard). render_video is tested only via its validation
+ * **Cost per run:** ~4 credits (one each: analyze_market, generate_script,
+ * parse_own_script, generate_image standard). render_video is tested only via its validation
  * path (no credits charged on validation rejection). Long-running video chain
  * tools (check_video_status, wait_for_video, fetch_video, apply_text_overlay)
  * need real artifacts to test successfully and are deferred to manual smoke.
@@ -32,6 +32,7 @@ import { generatePersonaPreview } from '../src/tools/generatePersonaPreview.js';
 import { generateScriptPreview } from '../src/tools/generateScriptPreview.js';
 import { analyzeMarket } from '../src/tools/analyzeMarket.js';
 import { generateScript } from '../src/tools/generateScript.js';
+import { parseOwnScript } from '../src/tools/parseOwnScript.js';
 import { generateImage } from '../src/tools/generateImage.js';
 import { renderVideo } from '../src/tools/renderVideo.js';
 import { UgcMcpError } from '../src/errors.js';
@@ -54,7 +55,7 @@ beforeAll(() => {
 afterAll(() => {
   if (!RUN_SMOKE) return;
   // eslint-disable-next-line no-console
-  console.log('\n  ⓘ Smoke run complete. Approximate credit cost: ~3 credits if all auth tools ran.');
+  console.log('\n  ⓘ Smoke run complete. Approximate credit cost: ~4 credits if all auth tools ran.');
 });
 
 describeSmoke('Smoke — free tier (no API key required)', () => {
@@ -201,6 +202,36 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
       const topicWords = ['brush', 'grooming', 'shedding', 'pet', 'dog', 'fur'];
       const hits = topicWords.filter((w) => haystack.includes(w));
       expect(hits.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+
+  itAuth(
+    'parse_own_script parses a raw script into the ScriptResult shape',
+    { timeout: SMOKE_TIMEOUT_MS },
+    async () => {
+      // 1 credit. Exercises the real proxyParseOwnScript request shape so spec/backend
+      // drift surfaces fast (same rationale as the three drift bugs caught before 0.1.4).
+      // Uses a short canned UGC monologue (~250 chars) — long enough to clear the 10-char
+      // minimum, short enough to bound the per-run cost and keep the request stable.
+      const rawScript =
+        "Okay so I've been using this self-cleaning pet brush for about a month now and I have to say my dog Bailey is obsessed. " +
+        "You press the button and all the fur just pops right out into the trash. " +
+        "If you have a heavy shedder you need this in your life. Link in bio.";
+      const result = await parseOwnScript.handler(
+        {
+          rawScript,
+          productDescription: 'self-cleaning pet grooming brush',
+          projectMode: 'creator',
+          isFaceless: true,
+        },
+        client,
+      );
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0]!.text);
+      // ScriptResult shape — at minimum scenes should be populated since we passed a real script.
+      expect(parsed.hooks ?? parsed.scenes).toBeDefined();
+      expect(Array.isArray(parsed.scenes)).toBe(true);
+      expect(parsed.scenes.length).toBeGreaterThan(0);
     },
   );
 

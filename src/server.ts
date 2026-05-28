@@ -16,6 +16,7 @@ import { generatePersonaPreview } from './tools/generatePersonaPreview.js';
 import { generateScriptPreview } from './tools/generateScriptPreview.js';
 import { analyzeMarket } from './tools/analyzeMarket.js';
 import { generateScript } from './tools/generateScript.js';
+import { parseOwnScript } from './tools/parseOwnScript.js';
 import { generateImage } from './tools/generateImage.js';
 import { renderVideo } from './tools/renderVideo.js';
 import { checkVideoStatus } from './tools/checkVideoStatus.js';
@@ -34,6 +35,7 @@ const FREE_TOOLS: Array<ToolDefinition<unknown>> = [
 const AUTH_TOOLS: Array<ToolDefinition<unknown>> = [
   analyzeMarket,
   generateScript,
+  parseOwnScript,
   generateImage,
   renderVideo,
   checkVideoStatus,

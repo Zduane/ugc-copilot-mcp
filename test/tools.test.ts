@@ -9,6 +9,7 @@ import { applyTextOverlay } from '../src/tools/applyTextOverlay.js';
 import { generatePersonaPreview } from '../src/tools/generatePersonaPreview.js';
 import { generateScriptPreview } from '../src/tools/generateScriptPreview.js';
 import { generateScript } from '../src/tools/generateScript.js';
+import { parseOwnScript } from '../src/tools/parseOwnScript.js';
 import { generateImage } from '../src/tools/generateImage.js';
 import { checkVideoStatus } from '../src/tools/checkVideoStatus.js';
 
@@ -51,6 +52,61 @@ describe('Tool input validation', () => {
     expect(parsed.success).toBe(false);
   });
 
+  it('render_video accepts valid engine/modelName combinations', () => {
+    // One canonical example per engine — proves the whitelist exists and is open.
+    const cases = [
+      { engine: 'sora', modelName: 'sora-2' },
+      { engine: 'sora', modelName: 'sora-2-pro' },
+      { engine: 'veo', modelName: 'veo-3.1-generate-preview' },
+      { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/image-to-video' },
+      { engine: 'kling', modelName: 'fal-ai/kling-video/v3/4k/image-to-video' },
+      { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/motion-control' },
+      { engine: 'seedance', modelName: 'bytedance/seedance-2.0/image-to-video' },
+      { engine: 'seedance', modelName: 'bytedance/seedance-2.0/text-to-video' },
+    ];
+    for (const c of cases) {
+      const parsed = renderVideo.inputSchema.safeParse({ visualPrompt: 'a creator', ...c });
+      expect(parsed.success).toBe(true);
+    }
+  });
+
+  it('render_video rejects engine/model mismatch (sora engine + veo model)', () => {
+    const parsed = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a creator',
+      engine: 'sora',
+      modelName: 'veo-3.1-generate-preview',
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => i.message).join(' ');
+      expect(issues).toMatch(/not a valid model for engine 'sora'/i);
+    }
+  });
+
+  it('render_video rejects unknown Kling model with a clear whitelist error', () => {
+    const parsed = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a creator',
+      engine: 'kling',
+      modelName: 'fal-ai/kling-video/v99/bogus/image-to-video',
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => i.message).join(' ');
+      expect(issues).toMatch(/not a valid model for engine 'kling'/i);
+      // Whitelist should appear in the error message so agents know what's valid.
+      expect(issues).toMatch(/fal-ai\/kling-video\/v3/i);
+    }
+  });
+
+  it('render_video rejects unknown Seedance model', () => {
+    const parsed = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a creator',
+      engine: 'seedance',
+      modelName: 'bytedance/seedance-vNext/fake',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it('apply_text_overlay requires at least one overlay', () => {
     const parsed = applyTextOverlay.inputSchema.safeParse({
       videoUrl: 'https://example.com/video.mp4',
@@ -83,6 +139,56 @@ describe('Tool input validation', () => {
       isFaceless: true,
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it('parse_own_script accepts the minimal valid input', () => {
+    expect(
+      parseOwnScript.inputSchema.safeParse({
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('parse_own_script accepts full input with all optional params', () => {
+    expect(
+      parseOwnScript.inputSchema.safeParse({
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+        twinDescription: 'a friendly pet owner in their 30s',
+        productDescription: 'self-cleaning pet grooming brush',
+        isFaceless: true,
+        projectMode: 'creator',
+        audioMode: 'voiceover',
+        engine: 'sora',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('parse_own_script rejects rawScript shorter than 10 chars', () => {
+    expect(parseOwnScript.inputSchema.safeParse({ rawScript: 'too short' }).success).toBe(false);
+  });
+
+  it('parse_own_script rejects rawScript longer than 10,000 chars', () => {
+    expect(
+      parseOwnScript.inputSchema.safeParse({ rawScript: 'a'.repeat(10_001) }).success,
+    ).toBe(false);
+  });
+
+  it('parse_own_script rejects unknown projectMode', () => {
+    expect(
+      parseOwnScript.inputSchema.safeParse({
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+        projectMode: 'not-a-real-mode',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('parse_own_script rejects unknown audioMode', () => {
+    expect(
+      parseOwnScript.inputSchema.safeParse({
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+        audioMode: 'whisper',
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -205,6 +311,66 @@ describe('Authenticated tool handler wiring', () => {
     expect(result.content[0]!.text).toContain('hint');
   });
 
+  it('render_video surfaces effectiveDuration / creditCost / quality from the response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okJson({
+        operation: { name: 'seedance-op-xyz' },
+        assembledPrompt: 'final prompt',
+        requestedDuration: 7,
+        effectiveDuration: 7,
+        creditCost: 31,
+        quality: 'hq',
+      }),
+    );
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    const result = await renderVideo.handler(
+      {
+        visualPrompt: 'a product',
+        engine: 'seedance',
+        modelName: 'bytedance/seedance-2.0/image-to-video',
+        duration: 7,
+      },
+      client,
+    );
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.operationName).toBe('seedance-op-xyz');
+    expect(payload.requestedDuration).toBe(7);
+    expect(payload.effectiveDuration).toBe(7);
+    expect(payload.creditCost).toBe(31);
+    expect(payload.quality).toBe('hq');
+    expect(payload.durationSnapped).toBe(false);
+  });
+
+  it('render_video flags durationSnapped=true and warns in the hint when backend snaps duration', async () => {
+    // Bug 2: agent asks for 20s on Seedance, backend clamps to 15s. The MCP tool surfaces
+    // the snap so the agent knows what actually got rendered and charged.
+    const fetchMock = vi.fn().mockResolvedValue(
+      okJson({
+        operation: { name: 'seedance-op-snap' },
+        requestedDuration: 20,
+        effectiveDuration: 15,
+        creditCost: 65,
+        quality: 'hq',
+      }),
+    );
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    const result = await renderVideo.handler(
+      {
+        visualPrompt: 'a product',
+        engine: 'seedance',
+        modelName: 'bytedance/seedance-2.0/image-to-video',
+        duration: 20,
+      },
+      client,
+    );
+    const payload = JSON.parse(result.content[0]!.text);
+    expect(payload.requestedDuration).toBe(20);
+    expect(payload.effectiveDuration).toBe(15);
+    expect(payload.durationSnapped).toBe(true);
+    expect(payload.hint).toMatch(/snapped to 15s/);
+    expect(payload.hint).toMatch(/65 credits/);
+  });
+
   it('fetch_video does not send Idempotency-Key and translates videoUri → uri on wire (regression for 0.1.3 backend rejection)', async () => {
     // Backend at functions/index.js fetchVideoData reads `uri` not `operationName`.
     // 0.1.3 sent `operationName` and got 400 "A valid 'uri' string and 'engine' string are required."
@@ -257,6 +423,56 @@ describe('Authenticated tool handler wiring', () => {
       productDescription: 'eco water bottle',
       tone: 'humorous',
       platform: 'tiktok',
+    });
+  });
+
+  it('parse_own_script posts to proxyParseOwnScript with idempotency key and omits undefined optionals', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson({ hooks: ['h1'], scenes: [], callToActions: ['cta1'] }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await parseOwnScript.handler(
+      {
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+        productDescription: 'pet grooming brush',
+      },
+      client,
+    );
+    expect(fetchMock.mock.calls[0]![0]).toContain('/proxyParseOwnScript');
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer ugc_live_test_key_xyz');
+    expect(headers['Idempotency-Key']).toMatch(/[0-9a-f-]{36}/);
+    expect(JSON.parse(init.body as string)).toEqual({
+      rawScript: 'Hey everyone, today I want to talk about this brush.',
+      productDescription: 'pet grooming brush',
+    });
+  });
+
+  it('parse_own_script forwards all optional fields when provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ hooks: [], scenes: [], callToActions: [] }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await parseOwnScript.handler(
+      {
+        rawScript: 'Hey everyone, today I want to talk about this brush.',
+        twinDescription: 'a friendly pet owner',
+        productDescription: 'pet grooming brush',
+        isFaceless: true,
+        projectMode: 'creator',
+        audioMode: 'voiceover',
+        engine: 'sora',
+      },
+      client,
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body).toEqual({
+      rawScript: 'Hey everyone, today I want to talk about this brush.',
+      twinDescription: 'a friendly pet owner',
+      productDescription: 'pet grooming brush',
+      isFaceless: true,
+      projectMode: 'creator',
+      audioMode: 'voiceover',
+      engine: 'sora',
     });
   });
 

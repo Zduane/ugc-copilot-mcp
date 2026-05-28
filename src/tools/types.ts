@@ -74,3 +74,13 @@ export const PROJECT_MODES = [
 ] as const;
 
 export const SCRIPT_PLATFORMS = ['tiktok', 'instagram-reels', 'youtube-shorts'] as const;
+
+/**
+ * Audio treatment hint used by parse_own_script (and any future tool that needs
+ * to override the projectMode-inferred audio mode).
+ *
+ * - 'voiceover' — all scenes are scriptType=voiceover, no visible speaker
+ * - 'dialogue' — on-camera dialogue allowed
+ * - 'background' — music/ambient only, no spoken script
+ */
+export const AUDIO_MODES = ['voiceover', 'dialogue', 'background'] as const;
