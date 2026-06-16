@@ -1,6 +1,15 @@
+import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, SERVER_VERSION } from '../src/server.js';
 import { UgcCopilotClient } from '../src/client.js';
+
+describe('SERVER_VERSION', () => {
+  it('matches the published package.json version (no drift)', () => {
+    const require = createRequire(import.meta.url);
+    const { version } = require('../package.json') as { version: string };
+    expect(SERVER_VERSION).toBe(version);
+  });
+});
 
 describe('createServer', () => {
   beforeEach(() => {

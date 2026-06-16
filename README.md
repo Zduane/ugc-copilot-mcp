@@ -59,7 +59,7 @@ rm -rf ~/.npm/_npx
 # Then quit Claude Desktop fully (⌘Q on macOS) and relaunch.
 ```
 
-Pinning `@latest` in your config (as above) makes npx more aggressive about checking the registry on each cold start. If you'd rather lock to a specific version for stability, replace `@latest` with the exact version, e.g. `@ugccopilot/mcp@0.1.12`.
+Pinning `@latest` in your config (as above) makes npx more aggressive about checking the registry on each cold start. If you'd rather lock to a specific version for stability, replace `@latest` with the exact version, e.g. `@ugccopilot/mcp@0.1.13`.
 
 ## Tools
 

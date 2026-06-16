@@ -121,7 +121,7 @@ export const renderVideo: ToolDefinition<Input> = {
   name: 'render_video',
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
-    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65, Veo std=40 / hq=130 (fixed), Kling std=32 / hq=50 / 4k=130, Seedance std=18 / hq=35 (8s baselines). ' +
+    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Seedance std=18 / hq=35 (4s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration). ' +
     'IMPORTANT — sceneImage is REQUIRED for sora/veo/kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
