@@ -58,6 +58,14 @@ const InputSchema = z.object({
       'Skipped server-side in faceless mode or when no influencer image is supplied. Cap is 2000 chars; ' +
       'backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped to prevent prompt-injection escapes.',
     ),
+  faceless: z
+    .boolean()
+    .optional()
+    .describe(
+      'Render a faceless, hands-only composition (no face or person shown). Defaults to false — by default the ' +
+      'creator/person is rendered per your visualPrompt, with their face visible when the prompt asks for it. ' +
+      'Set true only for hands-on-product or POV-style hooks.',
+    ),
 });
 
 type Input = z.infer<typeof InputSchema>;
@@ -86,6 +94,7 @@ export const generateImage: ToolDefinition<Input> = {
     if (input.referenceImageUrl) body.referenceImageUrl = input.referenceImageUrl;
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.masterIdentityPrompt) body.masterIdentityPrompt = input.masterIdentityPrompt;
+    if (input.faceless !== undefined) body.isFaceless = input.faceless;
     const imageUrl = await client.callApi<string>('proxyGenerateSceneImage', body);
     return toolJson({ imageUrl });
   },

@@ -519,6 +519,36 @@ describe('Authenticated tool handler wiring', () => {
     expect(body.productDescription).toBe('pet grooming brush');
   });
 
+  it('generate_image threads faceless=true to backend isFaceless (explicit opt-in)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await generateImage.handler({ visualPrompt: 'hands holding a serum bottle', faceless: true }, client);
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.isFaceless).toBe(true);
+  });
+
+  it('generate_image defaults to non-faceless: omits isFaceless when faceless is unset', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await generateImage.handler({ visualPrompt: 'a creator looking into the camera' }, client);
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect('isFaceless' in body).toBe(false);
+  });
+
+  it('generate_image threads an explicit faceless=false opt-out', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await generateImage.handler({ visualPrompt: 'a creator looking into the camera', faceless: false }, client);
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.isFaceless).toBe(false);
+  });
+
   it('apply_text_overlay posts overlays array to proxyApplyTextOverlay', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okJson({ overlayVideoUrl: 'https://signed/out.mp4' }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
