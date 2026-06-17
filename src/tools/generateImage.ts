@@ -54,9 +54,12 @@ const InputSchema = z.object({
       'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
       'no clothing or scene context). When set, the backend injects this verbatim as an [IDENTITY] block at ' +
       'the top of the Gemini prompt so the same character reappears across every generate_image call. ' +
-      'Pass the same string on each call to keep the character consistent across scenes. ' +
-      'Skipped server-side in faceless mode or when no influencer image is supplied. Cap is 2000 chars; ' +
-      'backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped to prevent prompt-injection escapes.',
+      'Pass the same string on each call to keep the character consistent across scenes — including when ' +
+      'you supply no reference photo at all (with no influencerImageUrl the creator is invented from this ' +
+      'description, so a stable masterIdentityPrompt is the only way to lock that face across scenes). ' +
+      'Skipped server-side only in faceless mode and in product-only scenes (a product image with no ' +
+      'influencerImageUrl). Cap is 2000 chars; backticks and [IDENTITY] / [/IDENTITY] delimiters are ' +
+      'stripped to prevent prompt-injection escapes.',
     ),
   faceless: z
     .boolean()
