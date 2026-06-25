@@ -54,9 +54,20 @@ const InputSchema = z.object({
       'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
       'no clothing or scene context). When set, the backend injects this verbatim as an [IDENTITY] block at ' +
       'the top of the Gemini prompt so the same character reappears across every generate_image call. ' +
-      'Pass the same string on each call to keep the character consistent across scenes. ' +
-      'Skipped server-side in faceless mode or when no influencer image is supplied. Cap is 2000 chars; ' +
-      'backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped to prevent prompt-injection escapes.',
+      'Pass the same string on each call to keep the character consistent across scenes — including when ' +
+      'you supply no reference photo at all (with no influencerImageUrl the creator is invented from this ' +
+      'description, so a stable masterIdentityPrompt is the only way to lock that face across scenes). ' +
+      'Skipped server-side only in faceless mode and in product-only scenes (a product image with no ' +
+      'influencerImageUrl). Cap is 2000 chars; backticks and [IDENTITY] / [/IDENTITY] delimiters are ' +
+      'stripped to prevent prompt-injection escapes.',
+    ),
+  faceless: z
+    .boolean()
+    .optional()
+    .describe(
+      'Render a faceless, hands-only composition (no face or person shown). Defaults to false — by default the ' +
+      'creator/person is rendered per your visualPrompt, with their face visible when the prompt asks for it. ' +
+      'Set true only for hands-on-product or POV-style hooks.',
     ),
 });
 
@@ -86,6 +97,7 @@ export const generateImage: ToolDefinition<Input> = {
     if (input.referenceImageUrl) body.referenceImageUrl = input.referenceImageUrl;
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.masterIdentityPrompt) body.masterIdentityPrompt = input.masterIdentityPrompt;
+    if (input.faceless !== undefined) body.isFaceless = input.faceless;
     const imageUrl = await client.callApi<string>('proxyGenerateSceneImage', body);
     return toolJson({ imageUrl });
   },

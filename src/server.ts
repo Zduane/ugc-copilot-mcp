@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -48,6 +50,16 @@ const ALL_TOOLS: Array<ToolDefinition<unknown>> = [...FREE_TOOLS, ...AUTH_TOOLS]
 
 const AUTH_TOOL_NAMES = new Set(AUTH_TOOLS.map((t) => t.name));
 
+// Single source of truth for the version we advertise to MCP clients: read it
+// from package.json at runtime so it can never drift from the published npm
+// version (this was previously hardcoded to '0.1.0' while the package shipped
+// 0.1.12). `../package.json` resolves to the package root from both src/ (dev)
+// and dist/ (published), since both live one level under the root.
+const pkgRequire = createRequire(import.meta.url);
+export const SERVER_VERSION = (
+  pkgRequire('../package.json') as { version: string }
+).version;
+
 export interface CreateServerOptions {
   client?: UgcCopilotClient;
 }
@@ -58,7 +70,7 @@ export function createServer(options: CreateServerOptions = {}): Server {
   const server = new Server(
     {
       name: 'ugc-copilot',
-      version: '0.1.0',
+      version: SERVER_VERSION,
     },
     {
       capabilities: {
