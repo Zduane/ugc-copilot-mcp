@@ -39,7 +39,8 @@ export const FREE_TOOL_INDUSTRIES = [
 
 export const PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;
 
-export const ENGINES = ['sora', 'veo', 'kling', 'seedance'] as const;
+// 'omni' = Gemini Omni Flash (preview) — 720p, 3–10s, 16:9/9:16 only, no HQ tier.
+export const ENGINES = ['sora', 'veo', 'kling', 'seedance', 'omni'] as const;
 
 export const QUALITIES = ['standard', 'hq'] as const;
 

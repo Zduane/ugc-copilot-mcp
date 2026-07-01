@@ -32,6 +32,8 @@ const VALID_MODELS_BY_ENGINE = {
     'bytedance/seedance-2.0/fast/text-to-video',
     'bytedance/seedance-2.0/text-to-video',
   ],
+  // Gemini Omni Flash (preview) — single 720p tier, no HQ variant.
+  omni: ['gemini-omni-flash-preview'],
 } as const;
 
 const SceneImageSchema = z
@@ -52,7 +54,7 @@ const InputSchema = z.object({
   engine: z
     .enum(ENGINES)
     .describe(
-      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled).',
+      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 3-10s, 16:9/9:16 only, no HQ).',
     ),
   modelName: z
     .string()
@@ -62,6 +64,7 @@ const InputSchema = z.object({
       'Kling: "fal-ai/kling-video/v3/standard/image-to-video" (FAST), "/pro/image-to-video" (HQ), ' +
       '"/4k/image-to-video" (ULTRA, native 4K), or "/standard/motion-control" / "/pro/motion-control" (clone-video only). ' +
       'Seedance: "bytedance/seedance-2.0/image-to-video" (HQ) or "/fast/image-to-video" (FAST); also reference-to-video and text-to-video variants. ' +
+      'Omni: "gemini-omni-flash-preview" (only model — 720p, no HQ). ' +
       'See VALID_MODELS_BY_ENGINE for the full list — passing a string not in the whitelist is rejected with a clear error before the backend is called.',
     ),
   sceneImage: SceneImageSchema.optional(),
