@@ -54,7 +54,7 @@ const InputSchema = z.object({
   engine: z
     .enum(ENGINES)
     .describe(
-      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 3-10s, 16:9/9:16 only, no HQ).',
+      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ).',
     ),
   modelName: z
     .string()
