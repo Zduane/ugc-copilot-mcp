@@ -95,6 +95,17 @@ const InputSchema = z.object({
       'descriptions alongside an I2V reference). Cap is 2000 chars (kling further truncates to 800 due ' +
       'to its 2500-char total prompt cap); backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped.',
     ),
+  qcRetryOfOperation: z
+    .string()
+    .optional()
+    .describe(
+      'QC free-retry token: the operationName (slashes replaced with underscores) of a prior ' +
+      'render whose check_video_status / wait_for_video response carried qc.pass=false with ' +
+      'qc.retryAvailable=true. Resubmit the IDENTICAL generation parameters with this set and ' +
+      'the render re-runs at NO credit cost (creditCost 0 in the response). Single-use, and the ' +
+      'visualPrompt must match the original exactly (enforced — QC_RETRY_PROMPT_MISMATCH ' +
+      'otherwise): the free redo re-rolls engine variance on the render you paid for, not a new render.',
+    ),
 }).superRefine((data, ctx) => {
   // Reject obviously-bad model names client-side so agents get a clear error before
   // hitting the backend. The backend re-validates against the same whitelist as

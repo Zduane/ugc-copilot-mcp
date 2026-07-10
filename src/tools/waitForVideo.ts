@@ -58,14 +58,24 @@ export const waitForVideo: ToolDefinition<Input> = {
           });
         }
         const videoUri = status.response?.generatedVideos?.[0]?.video?.uri ?? null;
+        // Surface the post-render QC verdict + silent-fallback disclosure so agents can
+        // act on quality signals: retryAvailable grants ONE free re-render via
+        // render_video with the identical params + qcRetryOfOperation.
+        const qcHint = status.qc?.pass === false && status.qc.retryAvailable
+          ? ` Quality check FAILED (${(status.qc.defects ?? []).join('; ')}) — one FREE re-render is available: call render_video with the IDENTICAL params (visualPrompt must match) plus qcRetryOfOperation="${input.operationName.replace(/\//g, '_')}".`
+          : status.qc?.pass === false
+            ? ` Quality check flagged: ${(status.qc.defects ?? []).join('; ')} — review before publishing.`
+            : '';
         return toolJson({
           status: 'done',
           videoUri,
           operationName: input.operationName,
           engine: input.engine,
-          hint: videoUri
+          ...(status.qc ? { qc: status.qc } : {}),
+          ...(status.fallbackWarning ? { fallbackWarning: status.fallbackWarning } : {}),
+          hint: (videoUri
             ? 'Call fetch_video for a downloadable signed MP4 URL.'
-            : 'No video URI in response — call fetch_video to retrieve.',
+            : 'No video URI in response — call fetch_video to retrieve.') + qcHint,
         });
       }
 
