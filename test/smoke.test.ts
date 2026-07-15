@@ -259,6 +259,31 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
   );
 
   itAuth(
+    'generate_image routes through GPT Image 2 when imageEngine is openai',
+    { timeout: 160_000 },
+    async () => {
+      // 1 credit (standard quality is 1 on both engines). Exercises the imageEngine
+      // param end-to-end (OpenAPI v2026-07-14): backend must accept the field, route
+      // to OpenAI images.generate, center-crop to 9:16, and return a Storage URL.
+      // GPT Image 2 is slower than Gemini (up to ~2 min), so this test uses its own
+      // longer-timeout client instead of the shared 90s one.
+      const gptClient = new UgcCopilotClient({ timeoutMs: 150_000 });
+      const result = await generateImage.handler(
+        {
+          visualPrompt:
+            'A simple flat-lay of a pet grooming brush on a wooden table, natural light. UGC style, smartphone photo.',
+          quality: 'standard',
+          imageEngine: 'openai',
+          aspectRatio: '9:16',
+        },
+        gptClient,
+      );
+      const parsed = JSON.parse(result.content[0]!.text);
+      expect(parsed.imageUrl).toMatch(/^https:\/\/firebasestorage\.googleapis\.com\//);
+    },
+  );
+
+  itAuth(
     'render_video without sceneImage returns the expected validation error (no credits)',
     { timeout: SMOKE_TIMEOUT_MS },
     async () => {
