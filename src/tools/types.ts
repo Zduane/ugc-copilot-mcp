@@ -44,6 +44,12 @@ export const ENGINES = ['sora', 'veo', 'kling', 'seedance', 'omni'] as const;
 
 export const QUALITIES = ['standard', 'hq'] as const;
 
+// Image engines accepted by the image endpoints (optional `imageEngine` field,
+// OpenAPI v2026-07-14). 'gemini' is the backend default; 'openai' = GPT Image 2.
+// Credits differ at HQ: gemini 1/2, openai 1/3 — mirror IMAGE_ENGINE_COSTS in
+// the main repo's constants when this changes.
+export const IMAGE_ENGINES = ['gemini', 'openai'] as const;
+
 export const ASPECT_RATIOS = ['1:1', '9:16', '16:9', '4:5'] as const;
 
 /**

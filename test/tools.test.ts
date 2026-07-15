@@ -492,6 +492,24 @@ describe('Authenticated tool handler wiring', () => {
     });
   });
 
+  it('generate_image forwards imageEngine when set and omits it by default', async () => {
+    // Fresh Response per call — a Response body is single-read.
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => okJson('https://firebasestorage.googleapis.com/v0/b/test/o/scene.png?alt=media'));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+
+    // Explicit GPT Image 2 selection is forwarded verbatim.
+    await generateImage.handler({ visualPrompt: 'a creator holding a labeled jar', imageEngine: 'openai' }, client);
+    const withEngine = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(withEngine.imageEngine).toBe('openai');
+
+    // Omitted → the field is absent so the backend applies its own 'gemini' default.
+    await generateImage.handler({ visualPrompt: 'a creator holding a labeled jar' }, client);
+    const withoutEngine = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
+    expect('imageEngine' in withoutEngine).toBe(false);
+  });
+
   it('generate_image always sends productDescription (regression for 0.1.0 backend rejection)', async () => {
     // Backend at functions/index.js:7980 rejects when productDescription === undefined
     // even though it's not in the OpenAPI required list. Real bug from 0.1.0 where

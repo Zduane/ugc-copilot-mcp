@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { ASPECT_RATIOS, PROJECT_MODES, QUALITIES, type ToolDefinition } from './types.js';
+import { ASPECT_RATIOS, IMAGE_ENGINES, PROJECT_MODES, QUALITIES, type ToolDefinition } from './types.js';
 
 const InputSchema = z.object({
   visualPrompt: z
@@ -17,7 +17,21 @@ const InputSchema = z.object({
       "even though it's not in the OpenAPI required list — pass an empty string if there's no product. " +
       'Including a real description anchors the AI to the right subject and reduces generic output.',
     ),
-  quality: z.enum(QUALITIES).default('standard').optional().describe('standard (1 credit) or hq (2 credits).'),
+  quality: z
+    .enum(QUALITIES)
+    .default('standard')
+    .optional()
+    .describe('standard (1 credit on either engine) or hq (2 credits on gemini, 3 credits on openai/GPT Image 2).'),
+  imageEngine: z
+    .enum(IMAGE_ENGINES)
+    .optional()
+    .describe(
+      'Image generation engine (backend defaults to "gemini" when omitted). "openai" routes through GPT Image 2 — ' +
+      'strongest product-label fidelity (labels, logos, printed text) because reference photos are passed as direct ' +
+      'edit inputs; output is center-cropped server-side to the exact requested aspect ratio, and generation is ' +
+      'slower (up to ~2 minutes on complex composites). HQ costs 3 credits on openai vs 2 on gemini; standard is ' +
+      '1 credit on both. Requires backend OpenAPI version >= 2026-07-14.',
+    ),
   aspectRatio: z.enum(ASPECT_RATIOS).default('9:16').optional().describe('Aspect ratio.'),
   influencerImageUrl: z
     .string()
@@ -77,7 +91,8 @@ export const generateImage: ToolDefinition<Input> = {
   name: 'generate_image',
   description:
     'Generate a scene image from a visual prompt. Returns a permanent Firebase Storage HTTPS URL (JSON-encoded string). ' +
-    'Cost: 1 credit standard / 2 credits hq. Requires UGC_COPILOT_API_KEY. ' +
+    'Cost: 1 credit standard on either engine; hq is 2 credits on the default gemini engine or 3 credits on GPT Image 2 ' +
+    '(imageEngine: "openai" — best for product-label fidelity). Requires UGC_COPILOT_API_KEY. ' +
     'The URL is suitable for direct rendering in chat UIs or feeding into render_video as a sceneImage source.',
   inputSchema: InputSchema,
   handler: async (input, client) => {
@@ -91,6 +106,7 @@ export const generateImage: ToolDefinition<Input> = {
       productDescription: input.productDescription ?? '',
     };
     if (input.quality) body.quality = input.quality;
+    if (input.imageEngine) body.imageEngine = input.imageEngine;
     if (input.aspectRatio) body.aspectRatio = input.aspectRatio;
     if (input.influencerImageUrl) body.influencerImageUrl = input.influencerImageUrl;
     if (input.productImageUrl) body.productImageUrl = input.productImageUrl;
