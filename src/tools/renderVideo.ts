@@ -71,6 +71,16 @@ const InputSchema = z.object({
   duration: z.number().int().min(4).max(20).optional().describe('Render duration in seconds (engine-clamped).'),
   editVideoId: z.string().optional().describe('Sora extend flow — source video ID to extend.'),
   isFaceless: z.boolean().optional(),
+  aspectRatio: z
+    .enum(['9:16', '16:9', '1:1', '4:5'])
+    .optional()
+    .describe(
+      'Output aspect ratio. Defaults to "9:16" (vertical) — the format UGC ads render in — ' +
+      'when omitted, so every engine renders vertical with no landscape fallback. Pass "16:9" ' +
+      'explicitly for landscape. Veo and Omni support only "9:16" / "16:9" (other values are ' +
+      'coerced toward the nearest supported ratio). For image-to-video the sceneImage should ' +
+      'already match this ratio, or the engine may pillarbox the frame.',
+    ),
   projectMode: z
     .enum(PROJECT_MODES)
     .optional()
@@ -152,6 +162,7 @@ export const renderVideo: ToolDefinition<Input> = {
     if (input.duration) body.duration = input.duration;
     if (input.editVideoId) body.editVideoId = input.editVideoId;
     if (input.isFaceless !== undefined) body.isFaceless = input.isFaceless;
+    if (input.aspectRatio) body.aspectRatio = input.aspectRatio;
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.productDescription) body.productDescription = input.productDescription;
     if (input.influencerDescription) body.influencerDescription = input.influencerDescription;
