@@ -54,6 +54,12 @@ function friendlyMessage(status: number, err: NonNullable<BackendErrorBody['erro
   if (status === 402 || err.code === 'insufficient-credits') {
     return `${base} You can buy a credit pack at ${PRICING_PACKS_URL}.`;
   }
+  // Tier cap (AI Twin slots, API keys, webhooks) — the wallet may be full, so the
+  // credit-pack hint above would be wrong. Never clears by retrying; 403 already
+  // makes isTransient() false, this just says so in words the agent reads.
+  if (err.code === 'quota-exceeded') {
+    return `${base} This is a plan limit, not a credit balance — free up a slot or upgrade at ${PRICING_PACKS_URL}. Retrying will not help.`;
+  }
   if (status === 429 || err.code === 'resource-exhausted') {
     const retryHint = err.retryAfter ? ` Retry after ~${err.retryAfter}s.` : '';
     // Free endpoints throw HttpsError("resource-exhausted", ...) which serializes
