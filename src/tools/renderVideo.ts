@@ -172,6 +172,12 @@ export const renderVideo: ToolDefinition<Input> = {
     if (input.masterIdentityPrompt) {
       body.twinContext = { masterIdentityPrompt: input.masterIdentityPrompt };
     }
+    // The free-retry token. Accepted by the schema and advertised as a 0-credit re-render
+    // ever since it was added, but never forwarded — so the backend saw an ordinary render
+    // and billed it in full, every time. The schema tests passed throughout, because the
+    // field genuinely is in the schema; only an assertion on the request BODY catches a
+    // field that is parsed and then dropped.
+    if (input.qcRetryOfOperation) body.qcRetryOfOperation = input.qcRetryOfOperation;
     const result = await client.callApi<StartResult>('proxyStartVideoGeneration', body);
     // Surface effective render parameters so the agent knows what actually got rendered
     // and charged. The backend silently snaps duration to engine-specific allowed values
