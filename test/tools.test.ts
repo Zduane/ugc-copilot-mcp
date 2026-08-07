@@ -311,6 +311,41 @@ describe('Authenticated tool handler wiring', () => {
     expect(result.content[0]!.text).toContain('hint');
   });
 
+  it('render_video FORWARDS qcRetryOfOperation in the request body', async () => {
+    // The tool advertises this token as a 0-credit re-render. It was in the schema and
+    // in the description, but never copied into the body, so every "free" retry reached
+    // the backend as an ordinary render and was billed in full. Asserting on the parsed
+    // body is the only thing that catches a field that is accepted and then dropped —
+    // the schema tests above passed the whole time.
+    let sentBody: Record<string, unknown> = {};
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(String(init.body));
+      return okJson({ operation: { name: 'kling-op-1' }, assembledPrompt: 'p', creditCost: 0 });
+    });
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await renderVideo.handler(
+      {
+        visualPrompt: 'a person',
+        engine: 'sora',
+        modelName: 'sora-2',
+        qcRetryOfOperation: 'ops_abc123',
+      },
+      client,
+    );
+    expect(sentBody.qcRetryOfOperation).toBe('ops_abc123');
+  });
+
+  it('render_video omits qcRetryOfOperation when it is not a retry', async () => {
+    let sentBody: Record<string, unknown> = {};
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(String(init.body));
+      return okJson({ operation: { name: 'sora-op-1' }, assembledPrompt: 'p' });
+    });
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await renderVideo.handler({ visualPrompt: 'a person', engine: 'sora', modelName: 'sora-2' }, client);
+    expect('qcRetryOfOperation' in sentBody).toBe(false);
+  });
+
   it('render_video surfaces effectiveDuration / creditCost / quality from the response', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       okJson({
