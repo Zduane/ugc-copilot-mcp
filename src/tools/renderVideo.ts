@@ -31,6 +31,11 @@ const VALID_MODELS_BY_ENGINE = {
     'bytedance/seedance-2.0/reference-to-video',
     'bytedance/seedance-2.0/fast/text-to-video',
     'bytedance/seedance-2.0/text-to-video',
+    // Seedance 2.5 — the premium Seedance tier (billed as seedance 'ultra'). No /fast/
+    // variants exist on fal; all three are HQ-tier and paid-gated backend-side.
+    'bytedance/seedance-2.5/image-to-video',
+    'bytedance/seedance-2.5/reference-to-video',
+    'bytedance/seedance-2.5/text-to-video',
   ],
   // Gemini Omni Flash (preview) — single 720p tier, no HQ variant.
   omni: ['gemini-omni-flash-preview'],
@@ -64,6 +69,7 @@ const InputSchema = z.object({
       'Kling: "fal-ai/kling-video/v3/standard/image-to-video" (FAST), "/pro/image-to-video" (HQ), ' +
       '"/4k/image-to-video" (ULTRA, native 4K), or "/standard/motion-control" / "/pro/motion-control" (clone-video only). ' +
       'Seedance: "bytedance/seedance-2.0/image-to-video" (HQ) or "/fast/image-to-video" (FAST); also reference-to-video and text-to-video variants. ' +
+      'Seedance 2.5 (ULTRA, premium — single-take coherence, richer native audio): "bytedance/seedance-2.5/image-to-video", "/reference-to-video", or "/text-to-video"; no fast variant, paid entitlement required. ' +
       'Omni: "gemini-omni-flash-preview" (only model — 720p, no HQ). ' +
       'See VALID_MODELS_BY_ENGINE for the full list — passing a string not in the whitelist is rejected with a clear error before the backend is called.',
     ),

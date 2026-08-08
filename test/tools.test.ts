@@ -70,6 +70,25 @@ describe('Tool input validation', () => {
     }
   });
 
+  it('render_video accepts Seedance 2.5 model names (backend bills them as the ultra tier)', () => {
+    // The backend whitelist gained these with the 2.5 launch; a schema that lags rejects
+    // every 2.5 call client-side with a misleading "not a valid model" error — the exact
+    // main-repo/sibling drift the sync tripwires exist for.
+    for (const modelName of [
+      'bytedance/seedance-2.5/image-to-video',
+      'bytedance/seedance-2.5/reference-to-video',
+      'bytedance/seedance-2.5/text-to-video',
+    ]) {
+      const parsed = renderVideo.inputSchema.safeParse({ visualPrompt: 'a creator', engine: 'seedance', modelName });
+      expect(parsed.success).toBe(true);
+    }
+    // No fast variant exists on fal — a guessed one must still be rejected.
+    const bogus = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a creator', engine: 'seedance', modelName: 'bytedance/seedance-2.5/fast/image-to-video',
+    });
+    expect(bogus.success).toBe(false);
+  });
+
   it('render_video rejects engine/model mismatch (sora engine + veo model)', () => {
     const parsed = renderVideo.inputSchema.safeParse({
       visualPrompt: 'a creator',
