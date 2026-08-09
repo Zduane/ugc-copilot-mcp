@@ -74,7 +74,19 @@ const InputSchema = z.object({
       'See VALID_MODELS_BY_ENGINE for the full list — passing a string not in the whitelist is rejected with a clear error before the backend is called.',
     ),
   sceneImage: SceneImageSchema.optional(),
-  duration: z.number().int().min(4).max(20).optional().describe('Render duration in seconds (engine-clamped).'),
+  duration: z
+    .number()
+    .int()
+    .min(4)
+    .max(30)
+    .optional()
+    .describe(
+      'Render duration in seconds, snapped/clamped per engine: Sora up to 20, Veo up to 8, ' +
+      'Kling up to 15, Seedance 2.0 up to 15, Seedance 2.5 (bytedance/seedance-2.5/* models) up to 30, ' +
+      'Omni up to 10. Values above an engine\'s cap are clamped and billed at the clamped duration — ' +
+      'check effectiveDuration/durationSnapped in the response. Cost scales linearly: a 30s Seedance 2.5 ' +
+      'render bills 30/4 × the ultra base.',
+    ),
   editVideoId: z.string().optional().describe('Sora extend flow — source video ID to extend.'),
   isFaceless: z.boolean().optional(),
   aspectRatio: z
