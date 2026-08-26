@@ -365,6 +365,43 @@ describe('Authenticated tool handler wiring', () => {
     expect('qcRetryOfOperation' in sentBody).toBe(false);
   });
 
+  it('render_video FORWARDS seed in the request body, including 0', async () => {
+    // Same drop-risk as qcRetryOfOperation above, plus a `!== undefined` check
+    // specifically to avoid an `if (input.seed)` bug that would swallow seed 0.
+    let sentBody: Record<string, unknown> = {};
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(String(init.body));
+      return okJson({ operation: { name: 'kling-op-1' }, assembledPrompt: 'p' });
+    });
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await renderVideo.handler(
+      { visualPrompt: 'a person', engine: 'kling', modelName: 'fal-ai/kling-video/v3/standard/image-to-video', seed: 0 },
+      client,
+    );
+    expect(sentBody.seed).toBe(0);
+  });
+
+  it('render_video omits seed when not provided', async () => {
+    let sentBody: Record<string, unknown> = {};
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(String(init.body));
+      return okJson({ operation: { name: 'sora-op-1' }, assembledPrompt: 'p' });
+    });
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await renderVideo.handler({ visualPrompt: 'a person', engine: 'sora', modelName: 'sora-2' }, client);
+    expect('seed' in sentBody).toBe(false);
+  });
+
+  it('render_video rejects an out-of-range seed at the schema level', () => {
+    const parsed = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a person',
+      engine: 'kling',
+      modelName: 'fal-ai/kling-video/v3/standard/image-to-video',
+      seed: 2147483648,
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it('render_video surfaces effectiveDuration / creditCost / quality from the response', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       okJson({
