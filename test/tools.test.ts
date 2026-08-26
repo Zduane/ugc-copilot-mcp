@@ -683,3 +683,64 @@ describe('Authenticated tool handler wiring', () => {
     expect(payload.overlayVideoUrl).toBeUndefined();
   });
 });
+
+// eslint-disable-next-line import/first -- module-scope import, hoisted per ESM semantics
+import { waitForVideo } from '../src/tools/waitForVideo.js';
+
+describe('Tool metadata (Claude connector directory requirements)', () => {
+  const ALL = [
+    analyzeTrends,
+    generateHooks,
+    generatePersonaPreview,
+    generateScriptPreview,
+    analyzeMarket,
+    generateScript,
+    parseOwnScript,
+    generateImage,
+    renderVideo,
+    checkVideoStatus,
+    waitForVideo,
+    fetchVideo,
+    applyTextOverlay,
+  ];
+  // No persistent side effects AND no credit charge: free previews + render polls/reads.
+  const READ_ONLY = new Set([
+    'analyze_trends',
+    'generate_hooks',
+    'generate_persona_preview',
+    'generate_script_preview',
+    'check_video_status',
+    'wait_for_video',
+    'fetch_video',
+  ]);
+
+  it('every tool has a display title, annotations, and a name ≤64 chars', () => {
+    expect(ALL).toHaveLength(13);
+    for (const tool of ALL) {
+      expect(tool.title, tool.name).toBeTruthy();
+      expect(tool.name.length, tool.name).toBeLessThanOrEqual(64);
+      expect(tool.annotations, tool.name).toBeDefined();
+      expect(tool.annotations.openWorldHint, tool.name).toBe(true);
+    }
+  });
+
+  it('readOnlyHint is true exactly for the no-side-effect tools', () => {
+    for (const tool of ALL) {
+      expect(tool.annotations.readOnlyHint, tool.name).toBe(READ_ONLY.has(tool.name));
+    }
+  });
+
+  it('credit-charging generators are explicitly non-destructive (spec defaults destructive when unset)', () => {
+    for (const tool of ALL) {
+      if (!READ_ONLY.has(tool.name)) {
+        expect(tool.annotations.destructiveHint, tool.name).toBe(false);
+      }
+    }
+  });
+
+  it('no tool description leaks stdio-only env-var setup instructions', () => {
+    for (const tool of ALL) {
+      expect(tool.description, tool.name).not.toContain('UGC_COPILOT_API_KEY');
+    }
+  });
+});

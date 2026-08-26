@@ -153,9 +153,11 @@ describe('UgcCopilotClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2); // initial + 1 retry
   });
 
-  it('429 error message includes API-key upsell hint when no key set, even without err.type', async () => {
+  it('429 on an unauthenticated free call includes the upsell hint, even without err.type', async () => {
     // Free endpoints return code='resource-exhausted' WITHOUT err.type='rate_limit' —
     // verify the upsell hint still fires (regression test for errors.ts #14 fix).
+    // The hint keys off the CALL being unauthenticated (callPublic), not env state —
+    // transport-neutral for the hosted server.
     delete process.env.UGC_COPILOT_API_KEY;
     const errBody = {
       error: {
@@ -165,9 +167,63 @@ describe('UgcCopilotClient', () => {
     };
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(errBody), { status: 429 }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    // Use callPublic since this is the free-endpoint shape.
     await expect(client.callPublic('freeAny', {})).rejects.toMatchObject({
-      message: expect.stringContaining('UGC_COPILOT_API_KEY'),
+      message: expect.stringContaining('Free tools are limited'),
     });
+  });
+
+  it('429 on an authenticated call does NOT include the free-tier upsell hint', async () => {
+    const errBody = {
+      error: { type: 'rate_limit', code: 'rate-limited', message: 'Too many requests.', retryAfter: 99999 },
+    };
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify(errBody), { status: 429 }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await expect(client.callApi('proxyAny', {})).rejects.toMatchObject({
+      message: expect.not.stringContaining('Free tools are limited'),
+    });
+  });
+
+  it('injected apiKey takes precedence over the env var (hosted per-request credential)', async () => {
+    process.env.UGC_COPILOT_API_KEY = 'ugc_live_env_key';
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const client = new UgcCopilotClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      apiKey: 'ugc_oat_injected_token',
+    });
+    await client.callApi('proxyTest', {});
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer ugc_oat_injected_token');
+  });
+
+  it('injected apiKey works with no env var at all (no MissingApiKeyError)', async () => {
+    delete process.env.UGC_COPILOT_API_KEY;
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const client = new UgcCopilotClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      apiKey: 'ugc_oat_token_2',
+    });
+    await expect(client.callApi('proxyTest', {})).resolves.toEqual({ ok: true });
+    expect(client.hasCredentials()).toBe(true);
+  });
+
+  it('extraHeaders are attached to callPublic but never to callApi', async () => {
+    // Fresh Response per call — Response bodies are single-use.
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => new Response(JSON.stringify({ data: {} }), { status: 200 }));
+    const client = new UgcCopilotClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      apiKey: 'ugc_live_x',
+      extraHeaders: { 'X-Ugc-Client-Ip': '203.0.113.9', 'X-Ugc-Proxy-Secret': 's3cr3t' },
+    });
+    await client.callPublic('freeTrendAnalyzer', {});
+    const publicHeaders = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(publicHeaders['X-Ugc-Client-Ip']).toBe('203.0.113.9');
+    expect(publicHeaders['X-Ugc-Proxy-Secret']).toBe('s3cr3t');
+
+    await client.callApi('proxyTest', {});
+    const apiHeaders = (fetchMock.mock.calls[1]![1] as RequestInit).headers as Record<string, string>;
+    expect(apiHeaders['X-Ugc-Client-Ip']).toBeUndefined();
+    expect(apiHeaders['X-Ugc-Proxy-Secret']).toBeUndefined();
   });
 });

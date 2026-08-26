@@ -27,6 +27,8 @@ interface HooksResult {
 
 export const generateHooks: ToolDefinition<Input> = {
   name: 'generate_hooks',
+  title: 'Generate Viral Hooks',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Generate 10 scroll-stopping hook variations across the viral hook taxonomy (curiosity, social proof, skeptic-to-believer, specific-number lead, etc.) for a product on TikTok, Instagram Reels, or YouTube Shorts. ' +
     'Free tier — no API key required, rate-limited to 5 calls/day per IP.',

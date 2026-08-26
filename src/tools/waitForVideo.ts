@@ -22,13 +22,20 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const waitForVideo: ToolDefinition<Input> = {
   name: 'wait_for_video',
+  title: 'Wait for Render',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Poll a video render with exponential backoff (5s → 10s → 15s, capped at ~50s total) inside a single tool call. ' +
     'On completion returns { status: "done", videoUri }. If still pending after maxWaitSeconds, returns { status: "pending", operationName, engine, hint } and the agent should call check_video_status again in 30s. ' +
-    'No credits charged. Requires UGC_COPILOT_API_KEY.',
+    'No credits charged. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
-  handler: async (input, client) => {
-    const cap = input.maxWaitSeconds ?? 50;
+  handler: async (input, client, ctx) => {
+    // The hosted server threads a tighter budget (45s) via ctx — Firebase
+    // Hosting kills rewrites at 60s, so the in-call wait must stay well under.
+    const budgetCapSeconds = ctx?.waitBudgetMs
+      ? Math.max(10, Math.floor(ctx.waitBudgetMs / 1000))
+      : Infinity;
+    const cap = Math.min(input.maxWaitSeconds ?? 50, budgetCapSeconds);
     const start = Date.now();
     const backoffSequenceMs = [5_000, 10_000, 15_000, 15_000];
     let backoffIdx = 0;

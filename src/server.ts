@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 import { UgcCopilotClient } from './client.js';
 import { toolError, UgcMcpError } from './errors.js';
-import { hasApiKey, MissingApiKeyError } from './auth.js';
+import { MissingApiKeyError } from './auth.js';
 
 import { analyzeTrends } from './tools/analyzeTrends.js';
 import { generateHooks } from './tools/generateHooks.js';
@@ -48,7 +48,11 @@ const AUTH_TOOLS: Array<ToolDefinition<unknown>> = [
 
 const ALL_TOOLS: Array<ToolDefinition<unknown>> = [...FREE_TOOLS, ...AUTH_TOOLS];
 
-const AUTH_TOOL_NAMES = new Set(AUTH_TOOLS.map((t) => t.name));
+// Exported for the hosted (Streamable HTTP) server, which must decide BEFORE
+// dispatch whether an unauthenticated tools/call should get an HTTP 401 with
+// WWW-Authenticate (protected tools) or proceed (free tools).
+export const AUTH_TOOL_NAMES: ReadonlySet<string> = new Set(AUTH_TOOLS.map((t) => t.name));
+export const FREE_TOOL_NAMES: ReadonlySet<string> = new Set(FREE_TOOLS.map((t) => t.name));
 
 // Single source of truth for the version we advertise to MCP clients: read it
 // from package.json at runtime so it can never drift from the published npm
@@ -62,10 +66,19 @@ export const SERVER_VERSION = (
 
 export interface CreateServerOptions {
   client?: UgcCopilotClient;
+  /**
+   * Hosted (Streamable HTTP) mode: auth comes from the per-request bearer
+   * (surfaced as extra.authInfo by the transport), never from env vars, and
+   * user-facing copy must not mention UGC_COPILOT_API_KEY env configuration.
+   */
+  remote?: boolean;
+  /** Cap on intentional in-call waits (wait_for_video); threaded to tool handlers. */
+  waitBudgetMs?: number;
 }
 
 export function createServer(options: CreateServerOptions = {}): Server {
   const client = options.client ?? new UgcCopilotClient();
+  const toolCtx = { waitBudgetMs: options.waitBudgetMs };
 
   const server = new Server(
     {
@@ -79,20 +92,27 @@ export function createServer(options: CreateServerOptions = {}): Server {
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const apiKeyPresent = hasApiKey();
+  server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
+    // Per-request auth (remote: the transport sets req.auth → extra.authInfo)
+    // takes precedence; the env var only counts for the stdio process model.
+    const authenticated =
+      Boolean(extra?.authInfo?.token) || (!options.remote && client.hasCredentials());
+    const unauthNote = options.remote
+      ? `\n\nNOTE: Not connected to a UGC Copilot account yet. Calling this tool will prompt you ` +
+        `to connect. Free tools work without connecting.`
+      : `\n\nNOTE: UGC_COPILOT_API_KEY is not set in this MCP server's env. ` +
+        `This tool will return an authentication error until you add the env var. ` +
+        `Generate a key at https://ugccopilot.ai/profile/#api-keys.`;
     return {
       tools: ALL_TOOLS.map((tool) => {
         const requiresAuth = AUTH_TOOL_NAMES.has(tool.name);
         const description =
-          requiresAuth && !apiKeyPresent
-            ? `${tool.description}\n\nNOTE: UGC_COPILOT_API_KEY is not set in this MCP server's env. ` +
-              `This tool will return an authentication error until you add the env var. ` +
-              `Generate a key at https://ugccopilot.ai/profile/#api-keys.`
-            : tool.description;
+          requiresAuth && !authenticated ? `${tool.description}${unauthNote}` : tool.description;
         return {
           name: tool.name,
+          title: tool.title,
           description,
+          annotations: tool.annotations,
           inputSchema: zodToJsonSchema(tool.inputSchema as z.ZodTypeAny, {
             target: 'jsonSchema7',
           }),
@@ -122,7 +142,7 @@ export function createServer(options: CreateServerOptions = {}): Server {
     }
 
     try {
-      return (await tool.handler(parsedInput, client)) as never;
+      return (await tool.handler(parsedInput, client, toolCtx)) as never;
     } catch (err) {
       if (err instanceof MissingApiKeyError) return toolError(err.message) as never;
       if (err instanceof UgcMcpError) return toolError(err.message) as never;

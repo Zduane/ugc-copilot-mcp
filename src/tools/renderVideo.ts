@@ -176,6 +176,8 @@ interface StartResult {
 
 export const renderVideo: ToolDefinition<Input> = {
   name: 'render_video',
+  title: 'Render UGC Video',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
     'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Seedance std=18 / hq=35 (4s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration). ' +
@@ -183,7 +185,7 @@ export const renderVideo: ToolDefinition<Input> = {
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
     'After render_video returns, call wait_for_video (polls with backoff up to ~50s) or check_video_status (single poll) until done, then fetch_video for the MP4 URL. ' +
-    'Requires UGC_COPILOT_API_KEY.',
+    'Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const body: Record<string, unknown> = {

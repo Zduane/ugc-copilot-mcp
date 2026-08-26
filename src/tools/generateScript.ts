@@ -23,9 +23,11 @@ type Input = z.infer<typeof InputSchema>;
 
 export const generateScript: ToolDefinition<Input> = {
   name: 'generate_script',
+  title: 'Generate Viral Script',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Generate a full viral UGC script: hook variations, scene-level visual prompts and dialogue, CTAs, and platform-specific variations (TikTok / Instagram Reels / YouTube Shorts). ' +
-    'Cost: 1 credit. Requires UGC_COPILOT_API_KEY. ' +
+    'Cost: 1 credit. Requires authentication (connected UGC Copilot account or API key). ' +
     "IMPORTANT — pick the right tool for the job: " +
     "(a) For a quick product-focused script, use **generate_script_preview** instead — it's free, " +
     "takes only `industry` + `productDescription`, and returns the same hooks/scenes/CTA shape. " +

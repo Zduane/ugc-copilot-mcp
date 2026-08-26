@@ -2,11 +2,36 @@ import type { z } from 'zod';
 import type { UgcCopilotClient } from '../client.js';
 import type { ToolResult } from '../errors.js';
 
+/**
+ * MCP tool behavior annotations (subset of the spec's ToolAnnotations we use).
+ * Directory reviewers check these against actual behavior — readOnlyHint must
+ * be true ONLY for tools with no persistent side effects and no credit charge.
+ */
+export interface ToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+/**
+ * Per-call context threaded by the server (third handler arg). Stdio passes
+ * nothing; the hosted Streamable HTTP server uses it to shrink in-call wait
+ * budgets below the Firebase Hosting 60s rewrite cap.
+ */
+export interface ToolContext {
+  /** Hard cap on intentional in-call waiting (wait_for_video), in ms. */
+  waitBudgetMs?: number;
+}
+
 export interface ToolDefinition<TInput = unknown> {
   name: string;
+  /** Human-readable display name (required for the Claude connector directory). */
+  title: string;
   description: string;
+  annotations: ToolAnnotations;
   inputSchema: z.ZodType<TInput>;
-  handler: (input: TInput, client: UgcCopilotClient) => Promise<ToolResult>;
+  handler: (input: TInput, client: UgcCopilotClient, ctx?: ToolContext) => Promise<ToolResult>;
 }
 
 /**

@@ -14,7 +14,7 @@
  * Errors are normalized into UgcMcpError with friendly messages.
  */
 
-import { resolveApiKey } from './auth.js';
+import { hasApiKey, resolveApiKey } from './auth.js';
 import { UgcMcpError, type BackendErrorBody } from './errors.js';
 
 export const DEFAULT_BASE_URL = 'https://us-central1-viral-ugc-copilot.cloudfunctions.net';
@@ -34,6 +34,19 @@ export interface ClientConfig {
   baseUrl?: string;
   timeoutMs?: number;
   fetch?: typeof fetch;
+  /**
+   * Bearer credential for callApi. When set, the env var is never consulted —
+   * this is how the hosted (Streamable HTTP) server threads each request's
+   * incoming OAuth access token (ugc_oat_...) or API key straight through to
+   * the REST API. Stdio keeps the UGC_COPILOT_API_KEY env fallback.
+   */
+  apiKey?: string;
+  /**
+   * Extra headers attached to callPublic requests only (never callApi) — used
+   * by the hosted server to forward the end-client IP for free-tool per-IP
+   * rate limiting (X-Ugc-Client-Ip + X-Ugc-Proxy-Secret).
+   */
+  extraHeaders?: Record<string, string>;
 }
 
 export interface CallOptions {
@@ -57,11 +70,20 @@ export class UgcCopilotClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
+  private readonly apiKey: string | undefined;
+  private readonly extraHeaders: Record<string, string>;
 
   constructor(config: ClientConfig = {}) {
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
+    this.apiKey = config.apiKey;
+    this.extraHeaders = config.extraHeaders ?? {};
+  }
+
+  /** Whether this client instance carries a credential (injected or env). */
+  hasCredentials(): boolean {
+    return Boolean(this.apiKey) || hasApiKey();
   }
 
   /**
@@ -74,7 +96,7 @@ export class UgcCopilotClient {
     options: CallOptions = {},
     mutating = true,
   ): Promise<T> {
-    const apiKey = resolveApiKey();
+    const apiKey = this.apiKey ?? resolveApiKey();
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -85,7 +107,7 @@ export class UgcCopilotClient {
       headers['Idempotency-Key'] = options.idempotencyKey;
     }
 
-    return this.requestWithRetry<T>(endpoint, headers, JSON.stringify(body), options, false);
+    return this.requestWithRetry<T>(endpoint, headers, JSON.stringify(body), options, false, true);
   }
 
   /**
@@ -97,13 +119,17 @@ export class UgcCopilotClient {
     payload: Record<string, unknown> = {},
     options: CallOptions = {},
   ): Promise<T> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.extraHeaders,
+    };
     return this.requestWithRetry<T>(
       endpoint,
       headers,
       JSON.stringify({ data: payload }),
       options,
       true,
+      false,
     );
   }
 
@@ -113,6 +139,7 @@ export class UgcCopilotClient {
     body: string,
     options: CallOptions,
     unwrapDataEnvelope: boolean,
+    authenticated: boolean,
   ): Promise<T> {
     const url = `${this.baseUrl}/${endpoint}`;
     const timeoutMs = options.timeoutMs ?? this.timeoutMs;
@@ -141,7 +168,7 @@ export class UgcCopilotClient {
         }
 
         const errBody = (await resp.json().catch(() => ({}))) as BackendErrorBody;
-        const err = new UgcMcpError(resp.status, errBody);
+        const err = new UgcMcpError(resp.status, errBody, { authenticated });
         if (err.isTransient() && attempt < maxAttempts) {
           const requestedSleepMs = err.retryAfter ? err.retryAfter * 1000 : TRANSIENT_BACKOFF_MS;
           if (requestedSleepMs > MAX_RETRY_SLEEP_MS) {

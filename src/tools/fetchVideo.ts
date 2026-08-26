@@ -35,12 +35,14 @@ interface FetchResult {
 
 export const fetchVideo: ToolDefinition<Input> = {
   name: 'fetch_video',
+  title: 'Fetch Video URL',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Get the signed MP4 URL for a completed video render. Pass the videoUri returned by wait_for_video or check_video_status. ' +
     'Returns videoUrl (typical 7-day expiry), mimeType, isWatermarked flag, and an optional ' +
     '`warning` field (with `warningCode`) when a Sora extension trim fallback failed — surface ' +
     'the warning to the user since the clip is longer than expected in that case. ' +
-    'For long-term retention, copy the bytes to your own storage on receipt. No credits charged. Requires UGC_COPILOT_API_KEY.',
+    'For long-term retention, copy the bytes to your own storage on receipt. No credits charged. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     // Backend `proxyFetchVideo` reads `uri` (functions/index.js fetchVideoData

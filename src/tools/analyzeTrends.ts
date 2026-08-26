@@ -24,9 +24,11 @@ interface TrendResult {
 
 export const analyzeTrends: ToolDefinition<Input> = {
   name: 'analyze_trends',
+  title: 'Analyze Industry Trends',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Industry-level UGC trend analysis. Returns 3-5 trending product opportunities with viral hook ideas, target audience, and price range. ' +
-    'Free tier — no API key required, rate-limited to 3 calls/day per IP. For higher volume, set UGC_COPILOT_API_KEY and use analyze_market.',
+    'Free tier — no API key required, rate-limited to 3 calls/day per IP. For higher volume, authenticate and use analyze_market.',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const result = await client.callPublic<TrendResult>('freeTrendAnalyzer', {

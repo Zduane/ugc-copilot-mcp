@@ -60,8 +60,10 @@ interface OverlayResult {
 
 export const applyTextOverlay: ToolDefinition<Input> = {
   name: 'apply_text_overlay',
+  title: 'Apply Text Overlays',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
-    'Burn 1-5 text overlays (captions, hooks, CTAs) onto a rendered video. Each overlay supports independent positioning, font/color/stroke/shadow styling, and per-overlay timing via startTime/endTime (in seconds). Cost: 1 credit per call. Requires UGC_COPILOT_API_KEY.',
+    'Burn 1-5 text overlays (captions, hooks, CTAs) onto a rendered video. Each overlay supports independent positioning, font/color/stroke/shadow styling, and per-overlay timing via startTime/endTime (in seconds). Cost: 1 credit per call. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const result = await client.callApi<BackendResult>('proxyApplyTextOverlay', {
