@@ -123,6 +123,21 @@ const InputSchema = z.object({
       'descriptions alongside an I2V reference). Cap is 2000 chars (kling further truncates to 800 due ' +
       'to its 2500-char total prompt cap); backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped.',
     ),
+  seed: z
+    .number()
+    .int()
+    .min(0)
+    .max(2147483647)
+    .optional()
+    .describe(
+      'Optional reproducibility seed, honored only by kling, seedance, and kling motion-control ' +
+      '(sora/veo/omni have no seed parameter and silently ignore it). Re-rendering with the same ' +
+      'seed and inputs reproduces the same generation — useful for comparing prompt iterations. ' +
+      'An out-of-range or non-integer value is ignored server-side (render proceeds unseeded, ' +
+      'reported as an INVALID_SEED_IGNORED advisory). Do NOT pass a seed alongside ' +
+      'qcRetryOfOperation: the backend strips it (QC_RETRY_SEED_IGNORED) because a QC retry ' +
+      'exists to re-roll engine variance, not reproduce the failing render.',
+    ),
   qcRetryOfOperation: z
     .string()
     .optional()
@@ -184,6 +199,7 @@ export const renderVideo: ToolDefinition<Input> = {
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.productDescription) body.productDescription = input.productDescription;
     if (input.influencerDescription) body.influencerDescription = input.influencerDescription;
+    if (input.seed !== undefined) body.seed = input.seed;
     // Wrap masterIdentityPrompt into the twinContext envelope the backend expects. Surfacing
     // it as a flat field on this tool keeps the MCP schema simple — twin/identity is a single
     // string from a caller's perspective, not a nested context object.
