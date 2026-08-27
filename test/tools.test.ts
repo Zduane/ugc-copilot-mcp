@@ -67,7 +67,20 @@ describe('Tool input validation', () => {
     // Instructs confirm-before-spend, with the explicit opt-out so it doesn't nag
     // users who already stated a preference.
     expect(d).toMatch(/get the user's go-ahead/i);
-    expect(d).toMatch(/Skip the confirmation only when/i);
+    // The opt-out must be NARROW. The first cut said "or told you to proceed
+    // without asking", which a live connector walkthrough showed swallows a
+    // plain "render a video of X" — the most common phrasing — cancelling the
+    // confirmation on exactly the requests it exists for. The waiver must
+    // require a named engine/tier or a STANDING instruction, and must say a
+    // bare render request is not one.
+    expect(d).toMatch(/Skip the confirmation ONLY when/);
+    expect(d).toMatch(/standing instruction/i);
+    expect(d).toMatch(/is a REQUEST, not that instruction/);
+    // Cheapest = the whole chain's total, with the worked example that caught
+    // this live: seedance t2v (18) picked over sora-2 + image (10 total) just
+    // to skip a 1-credit step.
+    expect(d).toMatch(/TOTAL credits for the whole chain/);
+    expect(d).toMatch(/10 total/);
     // Instructs cheapest-by-default, and inoculates against the specific failure
     // mode of reading "cinematic" in a scene prompt as a budget instruction.
     expect(d).toMatch(/DEFAULT TO THE CHEAPEST/);

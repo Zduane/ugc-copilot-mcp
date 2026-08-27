@@ -186,10 +186,14 @@ export const renderVideo: ToolDefinition<Input> = {
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
     'SPENDS THE USER\'S CREDITS — the same request can cost anywhere from 9 to 450 credits depending on the engine, model, and duration YOU pick, ' +
     'and this tool requires you to pick them. Before calling: (1) state which engine + model you intend to use and ' +
-    'what it will cost, and (2) get the user\'s go-ahead. Skip the confirmation only when the user already named an ' +
-    'engine/quality or told you to proceed without asking. ' +
+    'what it will cost, and (2) get the user\'s go-ahead. Skip the confirmation ONLY when the user named a specific ' +
+    'engine or quality tier, or gave a standing instruction not to ask before spending. A bare request to render ' +
+    'something ("render a video of X") is a REQUEST, not that instruction — confirm first. ' +
     'DEFAULT TO THE CHEAPEST option that satisfies the request — sora "sora-2" (18 for 8s; the cheapest at every ' +
-    'duration), then seedance "/fast/image-to-video" (36 for 8s). Reach for hq / 4k / veo ONLY when the user asks for maximum quality or a capability ' +
+    'duration), then seedance "/fast/image-to-video" (36 for 8s). Cheapest means TOTAL credits for the whole chain, ' +
+    'including any generate_image call: sora-2 at 4s (9) plus a 1-credit image is 10 total, cheaper than seedance ' +
+    'text-to-video (18) even though the latter needs no image. Do not pick a pricier engine just to skip a 1-credit step. ' +
+    'Reach for hq / 4k / veo ONLY when the user asks for maximum quality or a capability ' +
     'only that engine has; never infer it from adjectives like "cinematic" or "high quality" in a scene description, ' +
     'which describe the SHOT, not the budget. Duration multiplies cost, so do not raise duration beyond what was asked. ' +
     'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration) — e.g. a 30s Seedance 2.5 render is 450. ' +
