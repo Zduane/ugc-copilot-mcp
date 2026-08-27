@@ -56,9 +56,14 @@ describe('Tool input validation', () => {
   // they didn't ask for. Pin the load-bearing parts.
   it('render_video description tells the agent to confirm the spend and default to the cheapest engine', () => {
     const d = renderVideo.description;
-    // Names the risk in the agent's own terms.
+    // Names the risk in the agent's own terms. The all-caps casing is
+    // deliberate (agent salience) — a rewording that downcases it should
+    // trip this test and be re-considered, not waved through.
     expect(d).toMatch(/SPENDS THE USER'S CREDITS/);
-    expect(d).toMatch(/18 or 130/);
+    // The true spend range, matching the mcp.json credit hint ("9-450"):
+    // sora std at 4s = 9, seedance 2.5 at 30s = 450. The first cut of this
+    // guard pinned "18 or 130", which understated the ceiling 3.5x.
+    expect(d).toMatch(/9 to 450/);
     // Instructs confirm-before-spend, with the explicit opt-out so it doesn't nag
     // users who already stated a preference.
     expect(d).toMatch(/get the user's go-ahead/i);
@@ -72,8 +77,21 @@ describe('Tool input validation', () => {
     // (server.ts uses zodToJsonSchema), so this pins what the agent actually
     // reads rather than an internal zod shape — InputSchema is wrapped in a
     // superRefine for the engine/model whitelist, so `.shape` isn't reachable.
-    const engineJson = JSON.stringify(zodToJsonSchema(renderVideo.inputSchema as any));
-    expect(engineJson).toMatch(/Cheapest first/i);
+    const engineDesc = (zodToJsonSchema(renderVideo.inputSchema as any) as any)
+      .properties.engine.description as string;
+    expect(engineDesc).toMatch(/cheapest first/i);
+    // Pin the CONTENT, not just the phrase: the table must be normalized to a
+    // single duration (the first cut chained numbers quoted at four different
+    // baselines with '<', which produced an ordering that was wrong at every
+    // real duration), sora std must be the stated floor, and the tiers a model
+    // can legally pick must all be present — kling 4k's 163 ceiling, seedance
+    // 2.5 ultra, omni, and motion-control's separate table.
+    expect(engineDesc).toMatch(/8-SECOND/);
+    expect(engineDesc).toMatch(/sora std \(18\)/);
+    expect(engineDesc).toMatch(/kling 4k \(163\)/);
+    expect(engineDesc).toMatch(/seedance 2\.5 ultra/);
+    expect(engineDesc).toMatch(/omni/);
+    expect(engineDesc).toMatch(/motion-control/);
   });
 
   it('render_video requires engine + modelName', () => {
