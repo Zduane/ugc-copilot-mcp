@@ -31,6 +31,8 @@ interface PersonaResult {
 
 export const generatePersonaPreview: ToolDefinition<Input> = {
   name: 'generate_persona_preview',
+  title: 'Preview Creator Persona',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Generate a creator persona preview: name, tagline, personality traits, content pillars, hook styles, niche topics, posting cadence, and brand voice. ' +
     'Free tier — no API key required, rate-limited to 3 calls/day per IP. For full AI Twin (with persistent face/voice/style), use the web app.',

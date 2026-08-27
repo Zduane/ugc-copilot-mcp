@@ -38,9 +38,11 @@ type Input = z.infer<typeof InputSchema>;
 
 export const parseOwnScript: ToolDefinition<Input> = {
   name: 'parse_own_script',
+  title: 'Parse Your Own Script',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Parse a user-written raw script (10–10,000 chars) into the structured ScriptResult shape: hooks, scenes with visuals + dialogue, CTAs, and platform variations — ready for generate_image + render_video. ' +
-    'Cost: 1 credit. Requires UGC_COPILOT_API_KEY. ' +
+    'Cost: 1 credit. Requires authentication (connected UGC Copilot account or API key). ' +
     "Use this instead of `generate_script` when the user already has their own script and wants to render it without AI rewriting the content. " +
     "Optional `projectMode` and `audioMode` shape the parsing (e.g. live-broadcast adds ESPN-style score-bug graphics; voiceover forces faceless scenes). " +
     "Optional `engine` is passed to the AI as parsing context so scenes adapt to the target renderer's style. " +

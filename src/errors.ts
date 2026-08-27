@@ -32,9 +32,9 @@ export class UgcMcpError extends Error {
   readonly requestId: string | undefined;
   readonly details: unknown;
 
-  constructor(status: number, body: BackendErrorBody) {
+  constructor(status: number, body: BackendErrorBody, opts: { authenticated?: boolean } = {}) {
     const err = body?.error ?? {};
-    const message = friendlyMessage(status, err);
+    const message = friendlyMessage(status, err, opts.authenticated ?? false);
     super(message);
     this.status = status;
     this.code = err.code ?? 'unknown';
@@ -49,7 +49,11 @@ export class UgcMcpError extends Error {
   }
 }
 
-function friendlyMessage(status: number, err: NonNullable<BackendErrorBody['error']>): string {
+function friendlyMessage(
+  status: number,
+  err: NonNullable<BackendErrorBody['error']>,
+  authenticated: boolean,
+): string {
   const base = err.message ?? 'Request failed';
   if (status === 402 || err.code === 'insufficient-credits') {
     return `${base} You can buy a credit pack at ${PRICING_PACKS_URL}.`;
@@ -63,12 +67,15 @@ function friendlyMessage(status: number, err: NonNullable<BackendErrorBody['erro
   if (status === 429 || err.code === 'resource-exhausted') {
     const retryHint = err.retryAfter ? ` Retry after ~${err.retryAfter}s.` : '';
     // Free endpoints throw HttpsError("resource-exhausted", ...) which serializes
-    // without an err.type field — branch on either signal so the API-key upsell
-    // hint fires on free-tool 429s, where it's most useful.
+    // without an err.type field — branch on either signal so the upsell hint
+    // fires on free-tool 429s, where it's most useful. `authenticated` reflects
+    // whether THIS call carried a credential (transport-neutral: injected key,
+    // OAuth token, or env var), so authed API rate limits don't get the
+    // free-tier upsell.
     const isRateLimited = err.type === 'rate_limit' || err.code === 'resource-exhausted';
     const tierHint =
-      isRateLimited && !process.env.UGC_COPILOT_API_KEY
-        ? ' Free tools are limited to 3-5 calls/day per IP — set UGC_COPILOT_API_KEY for higher-volume authenticated tools.'
+      isRateLimited && !authenticated
+        ? ' Free tools are limited to 3-5 calls/day per IP — connect your UGC Copilot account (or configure an API key) for the higher-volume authenticated tools.'
         : '';
     return `${base}${retryHint}${tierHint}`;
   }
@@ -79,7 +86,7 @@ function friendlyMessage(status: number, err: NonNullable<BackendErrorBody['erro
     return `${base} The same Idempotency-Key was used with a different payload — retry without the key, or use a fresh one.`;
   }
   if (status === 401 || err.code === 'unauthenticated') {
-    return `${base} Check that UGC_COPILOT_API_KEY is set correctly (prefix 'ugc_live_'). Manage keys at https://ugccopilot.ai/profile/#api-keys.`;
+    return `${base} Your UGC Copilot credentials were rejected or expired. Reconnect your account, or if you configured an API key manually, check that it is set correctly (prefix 'ugc_live_') — manage keys at https://ugccopilot.ai/profile/#api-keys.`;
   }
   if (status === 400 && err.field) {
     return `${base} (field: ${err.field})`;

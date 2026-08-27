@@ -35,10 +35,12 @@ export interface VideoStatusResponse {
 
 export const checkVideoStatus: ToolDefinition<Input> = {
   name: 'check_video_status',
+  title: 'Check Render Status',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Single-shot poll of an in-progress video render. Returns done=false (with optional progress 0-100) while in progress; on completion returns done=true with response.generatedVideos[].video.uri; on failure returns done=true with error details (credits auto-refunded). ' +
     'Completed product-ad renders may carry a qc verdict: on qc.pass=false with qc.retryAvailable=true you get ONE free re-render — call render_video with the identical params plus qcRetryOfOperation (no credits charged). A fallbackWarning means the engine dropped the reference image; double-check product accuracy. ' +
-    'No credits charged. Requires UGC_COPILOT_API_KEY.',
+    'No credits charged. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const result = await client.callApi<VideoStatusResponse>(

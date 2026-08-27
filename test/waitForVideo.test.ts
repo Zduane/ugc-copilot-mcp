@@ -76,3 +76,51 @@ describe('wait_for_video', () => {
     expect(result.content[0]!.text).toContain('auto-refunded');
   });
 });
+
+describe('wait_for_video hosted budget', () => {
+  beforeEach(() => {
+    process.env.UGC_COPILOT_API_KEY = 'ugc_live_test_key';
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    delete process.env.UGC_COPILOT_API_KEY;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('ctx.waitBudgetMs caps the wait below maxWaitSeconds (Hosting 60s rewrite limit)', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ done: false, progress: 10 }), { status: 200 }),
+    );
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+
+    const promise = waitForVideo.handler(
+      { operationName: 'op-budget', engine: 'sora', maxWaitSeconds: 55 },
+      client,
+      { waitBudgetMs: 20_000 },
+    );
+    await vi.advanceTimersByTimeAsync(25_000);
+    const result = await promise;
+
+    expect(result.content[0]!.text).toContain('"status": "pending"');
+    // A 20s cap allows sleeps of 5s + 10s + ≤5s remainder — at most 3 polls,
+    // where the uncapped 55s request would have kept polling.
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
+  it('without ctx the input maxWaitSeconds governs (stdio unchanged)', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ done: false, progress: 10 }), { status: 200 }),
+    );
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+
+    const promise = waitForVideo.handler(
+      { operationName: 'op-nolimit', engine: 'sora', maxWaitSeconds: 30 },
+      client,
+    );
+    await vi.advanceTimersByTimeAsync(35_000);
+    const result = await promise;
+    expect(result.content[0]!.text).toContain('"status": "pending"');
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+});

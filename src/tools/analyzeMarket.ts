@@ -32,12 +32,14 @@ interface MarketAnalysisResult {
 
 export const analyzeMarket: ToolDefinition<Input> = {
   name: 'analyze_market',
+  title: 'Full Market Analysis',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Full market analysis for an industry: trending products + market trends, audience personas, top keywords, viral hooks, and strategy recommendations. ' +
     'Cost: 1 credit (the trending products call is free for the first ever analysis on the account, then 1 credit; the full market analysis is included). ' +
     'The market-analysis half is uncharged but capped per account per day — 200/day with paid entitlement, 20/day on never-paid accounts — and returns 429 with Retry-After once exceeded. ' +
     'That half runs on every call, including when includeTrendingProducts is false. ' +
-    'Composite of proxyFetchTopSellingProducts + proxyFetchFullMarketAnalysis. Requires UGC_COPILOT_API_KEY.',
+    'Composite of proxyFetchTopSellingProducts + proxyFetchFullMarketAnalysis. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const includeProducts = input.includeTrendingProducts ?? true;

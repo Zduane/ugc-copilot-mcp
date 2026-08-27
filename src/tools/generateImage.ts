@@ -89,10 +89,12 @@ type Input = z.infer<typeof InputSchema>;
 
 export const generateImage: ToolDefinition<Input> = {
   name: 'generate_image',
+  title: 'Generate Scene Image',
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Generate a scene image from a visual prompt. Returns a permanent Firebase Storage HTTPS URL (JSON-encoded string). ' +
     'Cost: 1 credit standard on either engine; hq is 2 credits on the default gemini engine or 3 credits on GPT Image 2 ' +
-    '(imageEngine: "openai" — best for product-label fidelity). Requires UGC_COPILOT_API_KEY. ' +
+    '(imageEngine: "openai" — best for product-label fidelity). Requires authentication (connected UGC Copilot account or API key). ' +
     'The URL is suitable for direct rendering in chat UIs or feeding into render_video as a sceneImage source.',
   inputSchema: InputSchema,
   handler: async (input, client) => {

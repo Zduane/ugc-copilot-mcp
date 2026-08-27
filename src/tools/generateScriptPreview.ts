@@ -23,6 +23,8 @@ interface ScriptPreviewResult {
 
 export const generateScriptPreview: ToolDefinition<Input> = {
   name: 'generate_script_preview',
+  title: 'Preview UGC Script',
+  annotations: { readOnlyHint: true, openWorldHint: true },
   description:
     'Generate a preview-tier viral UGC script: 3 hooks (different psychological triggers), 3 scenes with visual + script + tone, and a CTA. ' +
     'Free tier — no API key required, rate-limited to 3 calls/day per IP. For full multi-mode scripts with platform variations and scene-level visual prompts, use generate_script.',
