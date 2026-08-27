@@ -59,7 +59,11 @@ const InputSchema = z.object({
   engine: z
     .enum(ENGINES)
     .describe(
-      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ).',
+      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ). ' +
+      'Cost for an 8-SECOND render, cheapest first (every engine scales linearly with duration except veo, which is fixed): ' +
+      'sora std (18) < seedance std (36) < kling std / omni / veo std (40) < kling hq (63) < sora hq (65) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < veo hq (130) < kling 4k (163). ' +
+      'Kling motion-control bills its own table: std 44 / pro 88 at 8s. ' +
+      'Pick the cheapest that meets the stated need unless the user chose otherwise.',
     ),
   modelName: z
     .string()
@@ -180,7 +184,15 @@ export const renderVideo: ToolDefinition<Input> = {
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
-    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Seedance std=18 / hq=35 (4s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration). ' +
+    'SPENDS THE USER\'S CREDITS — the same request can cost anywhere from 9 to 450 credits depending on the engine, model, and duration YOU pick, ' +
+    'and this tool requires you to pick them. Before calling: (1) state which engine + model you intend to use and ' +
+    'what it will cost, and (2) get the user\'s go-ahead. Skip the confirmation only when the user already named an ' +
+    'engine/quality or told you to proceed without asking. ' +
+    'DEFAULT TO THE CHEAPEST option that satisfies the request — sora "sora-2" (18 for 8s; the cheapest at every ' +
+    'duration), then seedance "/fast/image-to-video" (36 for 8s). Reach for hq / 4k / veo ONLY when the user asks for maximum quality or a capability ' +
+    'only that engine has; never infer it from adjectives like "cinematic" or "high quality" in a scene description, ' +
+    'which describe the SHOT, not the budget. Duration multiplies cost, so do not raise duration beyond what was asked. ' +
+    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration) — e.g. a 30s Seedance 2.5 render is 450. ' +
     'IMPORTANT — sceneImage is REQUIRED for sora/veo/kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
