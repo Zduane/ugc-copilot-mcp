@@ -1,6 +1,6 @@
 {
   "name": "@ugccopilot/mcp",
-  "version": "0.1.25",
+  "version": "0.2.0",
   "description": "Official MCP (Model Context Protocol) server for UGC Copilot. Generate UGC-style video ads end-to-end (script, persona, image, video, overlay) from Claude Desktop, Cursor, Cline, Zed, or any MCP-compatible agent. Wraps the public REST API with 13 tools across free + authenticated tiers.",
   "keywords": [
     "mcp",
