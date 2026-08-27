@@ -4,6 +4,7 @@ import { analyzeTrends } from '../src/tools/analyzeTrends.js';
 import { generateHooks } from '../src/tools/generateHooks.js';
 import { analyzeMarket } from '../src/tools/analyzeMarket.js';
 import { renderVideo } from '../src/tools/renderVideo.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { fetchVideo } from '../src/tools/fetchVideo.js';
 import { applyTextOverlay } from '../src/tools/applyTextOverlay.js';
 import { generatePersonaPreview } from '../src/tools/generatePersonaPreview.js';
@@ -45,6 +46,34 @@ describe('Tool input validation', () => {
       platform: 'tiktok',
     });
     expect(parsed.success).toBe(false);
+  });
+
+  // render_video is the only tool where the AGENT picks how much of the user's
+  // money to spend: engine + modelName are required, and the same request costs
+  // 18 or 130 depending on what it picks. The schema can't constrain that, so the
+  // guidance lives in the description — which means a future description edit can
+  // silently delete the only thing standing between a user and a 130-credit render
+  // they didn't ask for. Pin the load-bearing parts.
+  it('render_video description tells the agent to confirm the spend and default to the cheapest engine', () => {
+    const d = renderVideo.description;
+    // Names the risk in the agent's own terms.
+    expect(d).toMatch(/SPENDS THE USER'S CREDITS/);
+    expect(d).toMatch(/18 or 130/);
+    // Instructs confirm-before-spend, with the explicit opt-out so it doesn't nag
+    // users who already stated a preference.
+    expect(d).toMatch(/get the user's go-ahead/i);
+    expect(d).toMatch(/Skip the confirmation only when/i);
+    // Instructs cheapest-by-default, and inoculates against the specific failure
+    // mode of reading "cinematic" in a scene prompt as a budget instruction.
+    expect(d).toMatch(/DEFAULT TO THE CHEAPEST/);
+    expect(d).toMatch(/cinematic/);
+    // The engine field carries the cost ordering the default rule depends on.
+    // Asserted through the SAME conversion the server ships to clients
+    // (server.ts uses zodToJsonSchema), so this pins what the agent actually
+    // reads rather than an internal zod shape — InputSchema is wrapped in a
+    // superRefine for the engine/model whitelist, so `.shape` isn't reachable.
+    const engineJson = JSON.stringify(zodToJsonSchema(renderVideo.inputSchema as any));
+    expect(engineJson).toMatch(/Cheapest first/i);
   });
 
   it('render_video requires engine + modelName', () => {
