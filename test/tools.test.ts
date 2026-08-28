@@ -773,6 +773,26 @@ describe('stitch_videos', () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("engines only accepts 'sora' — every other engine value is a backend no-op or breaks the stitch", () => {
+    // 'omni' + a Storage URL makes the backend's omni download branch reject the
+    // whole call; veo/kling/seedance are silent no-ops. The schema must not offer them.
+    expect(
+      stitchVideos.inputSchema.safeParse({
+        videoUrls: ['https://cdn/a.mp4'],
+        engines: ['omni'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects parallel arrays whose length differs from videoUrls (incl. empty)', () => {
+    const base = { videoUrls: ['https://cdn/a.mp4', 'https://cdn/b.mp4'] };
+    // Short captions would 400 at the backend; a short engines array is WORSE —
+    // the backend silently mis-applies the Sora trim to the wrong clip.
+    expect(stitchVideos.inputSchema.safeParse({ ...base, captions: ['only one'] }).success).toBe(false);
+    expect(stitchVideos.inputSchema.safeParse({ ...base, engines: ['sora'] }).success).toBe(false);
+    expect(stitchVideos.inputSchema.safeParse({ ...base, captions: [] }).success).toBe(false);
+  });
+
   it('forwards the API-friendly shape and passes warning through', async () => {
     const client = new UgcCopilotClient({ apiKey: 'ugc_live_x' });
     const spy = vi.spyOn(client, 'callApi').mockResolvedValue({
@@ -798,11 +818,19 @@ describe('stitch_videos', () => {
     expect(payload.warning).toBe('captions skipped');
   });
 
-  it('description carries the load-bearing facts: free, permanent URL, ~50s limit', () => {
+  it('description carries the load-bearing facts and none of the debunked ones', () => {
     const d = stitchVideos.description;
     expect(d).toMatch(/NO credits/);
-    expect(d).toMatch(/PERMANENT signed URL/);
-    expect(d).toMatch(/~50s/);
+    expect(d).toMatch(/permanent download URL/);
+    // The hosted budget is 45s (mcpServer CLIENT_TIMEOUT_MS), and the safe retry is
+    // to WAIT — the earlier attempt usually completes server-side and holds a slot.
+    expect(d).toMatch(/~45s/);
+    expect(d).toMatch(/WAIT about a minute/);
+    expect(d).toMatch(/watermark/);
+    // fetch_video URLs are built by the same permanent-token helper; the first cut
+    // claimed a "~7-day" contrast that was stale doc lore. Never reintroduce it.
+    expect(d).not.toMatch(/7-day/);
+    expect(d).not.toMatch(/unlike fetch_video/i);
   });
 });
 

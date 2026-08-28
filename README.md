@@ -2,7 +2,7 @@
 
 Official MCP (Model Context Protocol) server for [UGC Copilot](https://ugccopilot.ai). Generate UGC-style video ads end-to-end from Claude Desktop, Cursor, Cline, Zed, or any MCP-compatible agent.
 
-13 tools across free + authenticated tiers wrapping the public REST API. Render with Sora 2, Veo 3.1, Kling 3.0, or Seedance 2.0. Pay-as-you-go — no subscription required.
+14 tools across free + authenticated tiers wrapping the public REST API. Render with Sora 2, Veo 3.1, Kling 3.0, or Seedance 2.0. Pay-as-you-go — no subscription required.
 
 ## Quick start
 
@@ -24,7 +24,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. Thirteen tools will appear in the tools list.
+Restart Claude Desktop. Fourteen tools will appear in the tools list.
 
 ### Cursor
 
@@ -85,6 +85,7 @@ Pinning `@latest` in your config (as above) makes npx more aggressive about chec
 | `wait_for_video` | Poll with backoff up to ~50s | 0 |
 | `fetch_video` | Get the rendered MP4 URL | 0 |
 | `apply_text_overlay` | Burn captions/CTAs onto a video | 1/call |
+| `stitch_videos` | Concatenate 1-10 clips into the final video (crossfades + free captions) | 0 |
 
 ## Get an API key
 
@@ -109,6 +110,8 @@ Video render costs vary by engine, quality, and duration:
 1. Call `wait_for_video` — polls up to ~50s (stays inside the MCP tool window).
 2. If still pending, the agent gets back the `operationName` and a hint to call `check_video_status` again in 30s.
 3. When done, call `fetch_video` to get the signed MP4 URL.
+4. For a multi-scene script: repeat per scene, then `stitch_videos` with the URLs in
+   scene order (optional crossfades and free burned-in captions) for the final ad.
 
 ## Errors
 

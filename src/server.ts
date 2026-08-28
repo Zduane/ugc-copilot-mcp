@@ -117,7 +117,7 @@ export function createServer(options: CreateServerOptions = {}): Server {
           // Claude's directory review reads the display title from
           // ToolAnnotations.title; the top-level `title` alone leaves every tool
           // flagged "Missing annotations: title" in the submission review UI.
-          annotations: { title: tool.title, ...tool.annotations },
+          annotations: { ...tool.annotations, title: tool.title },
           inputSchema: zodToJsonSchema(tool.inputSchema as z.ZodTypeAny, {
             target: 'jsonSchema7',
           }),

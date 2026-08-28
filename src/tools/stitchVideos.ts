@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { ENGINES, type ToolDefinition } from './types.js';
+import type { ToolDefinition } from './types.js';
 
 /**
  * Wraps `proxyStitchVideos` (docs/openapi.yaml /proxyStitchVideos — the
@@ -23,13 +23,18 @@ const InputSchema = z.object({
       'Signed MP4 URLs in output order (typically from fetch_video). 1-10 clips. ' +
       'Each clip must belong to the calling account — foreign URLs are rejected.',
     ),
+  // Deliberately narrower than the OpenAPI Engine enum: 'sora' is the only value the
+  // backend acts on (the 0.5s prompt-flash trim). Passing 'omni' with a Storage URL
+  // actually breaks the whole stitch — the backend's omni download branch fires before
+  // its direct-URL handling and rejects non-Gemini hosts — and veo survives only by a
+  // substring accident. Don't offer selections that are no-ops or landmines.
   engines: z
-    .array(z.enum(ENGINES).nullable())
+    .array(z.literal('sora').nullable())
     .optional()
     .describe(
-      'Optional parallel array, one entry per videoUrls clip (null to skip): the engine that ' +
-      'rendered each clip. Sora-tagged clips get the standard 0.5s start trim that removes ' +
-      "the prompt-image flash. Omit if the sources are already trimmed.",
+      "Optional parallel array, one entry per videoUrls clip: 'sora' for an UNTRIMMED " +
+      'Sora source (applies the standard 0.5s start trim that removes the prompt-image ' +
+      'flash), null for every other clip. Omit entirely if the sources are already trimmed.',
     ),
   useCrossfade: z
     .boolean()
@@ -45,11 +50,26 @@ const InputSchema = z.object({
     .array(z.string().max(2000).nullable())
     .optional()
     .describe(
-      'Optional parallel array, one entry per videoUrls clip: that clip\'s spoken script text, ' +
-      'or null to leave a clip uncaptioned (e.g. B-roll). Burns TikTok-style captions into the ' +
+      "Optional parallel array, one entry per videoUrls clip: that clip's spoken script text, " +
+      'or null to leave that clip uncaptioned. Burns TikTok-style captions into the ' +
       'stitched output, timed against each clip\'s measured duration. Free. If the caption pass ' +
       'fails the stitch still succeeds and the response carries a warning.',
     ),
+}).superRefine((val, ctx) => {
+  // Both parallel arrays must match videoUrls 1:1. The backend hard-errors on a
+  // captions mismatch (wasted round-trip) but SILENTLY tolerates a short/long
+  // engines array — which mis-applies the Sora trim to the wrong clip. Catch both
+  // locally. This also rejects empty arrays (videoUrls has min 1).
+  for (const key of ['engines', 'captions'] as const) {
+    const arr = val[key];
+    if (arr && arr.length !== val.videoUrls.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} must be parallel to videoUrls (expected ${val.videoUrls.length}, got ${arr.length})`,
+      });
+    }
+  }
 });
 
 type Input = z.infer<typeof InputSchema>;
@@ -67,21 +87,22 @@ export const stitchVideos: ToolDefinition<Input> = {
   description:
     'Concatenate 1-10 rendered clips into the final video, in order, with optional crossfade ' +
     'transitions and free burned-in TikTok-style captions. NO credits — the per-clip render ' +
-    'costs were already paid at render_video. Returns a PERMANENT signed URL (unlike ' +
-    "fetch_video's ~7-day links), so this is also the right way to get a keepable link for a " +
-    'single clip. Typical flow for a multi-scene script: render each scene → fetch_video each → ' +
-    'stitch_videos with the URLs in scene order and each scene\'s dialogue as captions. ' +
-    'PRACTICAL LIMIT: stitching runs inside one ~50s call — a handful of short scenes is fine, ' +
-    'but many long clips can time out; if that happens retry with fewer clips per call ' +
-    '(stitch in batches), or assemble in the web app. Requires authentication (connected ' +
-    'UGC Copilot account or API key).',
+    'costs were already paid at render_video. Returns a permanent download URL. Typical flow ' +
+    'for a multi-scene script: render each scene → fetch_video each → stitch_videos with the ' +
+    "URLs in scene order and each scene's dialogue as captions. Every clip should carry an " +
+    'audio track — a silent clip can fail the whole stitch. Trial/free accounts get a ' +
+    'watermark on the stitched output. PRACTICAL LIMIT: on the hosted connector the whole ' +
+    'stitch runs inside one ~45s call — a handful of short scenes is fine, many long clips ' +
+    'can time out. If a call times out, WAIT about a minute before retrying with fewer clips: ' +
+    'the earlier attempt is usually still running server-side and holds one of your ' +
+    'concurrency slots. Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
     const body: Record<string, unknown> = { videoUrls: input.videoUrls };
-    if (input.engines) body.engines = input.engines;
+    if (input.engines !== undefined) body.engines = input.engines;
     if (input.useCrossfade !== undefined) body.useCrossfade = input.useCrossfade;
     if (input.crossfadeDuration !== undefined) body.crossfadeDuration = input.crossfadeDuration;
-    if (input.captions) body.captions = input.captions;
+    if (input.captions !== undefined) body.captions = input.captions;
     const result = await client.callApi<BackendResult>('proxyStitchVideos', body);
     return toolJson({
       videoUrl: result.videoUrl,

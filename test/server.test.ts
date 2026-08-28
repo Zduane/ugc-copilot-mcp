@@ -41,7 +41,7 @@ describe('createServer', () => {
     delete process.env.UGC_COPILOT_API_KEY;
   });
 
-  it('returns an MCP server that registers all 14 tools', async () => {
+  it('constructs a server exposing the tools capability', async () => {
     const server = createServer({ client: new UgcCopilotClient() });
 
     // Probe internal handlers via the SDK's internal request handling. Since the SDK
