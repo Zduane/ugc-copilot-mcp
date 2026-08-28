@@ -95,7 +95,7 @@ You only need a key for the authenticated tier — the four free tools work with
 
 ## Credit pricing
 
-PAYG packs (no subscription required): 200 credits / $25, 500 / $50, 2,500 / $200, 10,000 / $700. Subscriptions include monthly bundled credits and higher concurrency caps. See <https://ugccopilot.ai/pricing>.
+PAYG packs (no subscription required): $9 Starter Pack (130 credits + 50 first-purchase bonus, one-time), 200 credits / $39, 500 / $79. Subscriptions include monthly bundled credits, higher concurrency caps, and discounted add-on packs (200 / $25, 500 / $50, 2,500 / $200, 10,000 / $700). See <https://ugccopilot.ai/pricing>.
 
 Video render costs vary by engine, quality, and duration:
 - Sora 2: 18 std / 65 hq (8s baseline, scales by duration)
