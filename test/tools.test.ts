@@ -746,6 +746,65 @@ describe('Authenticated tool handler wiring', () => {
 
 // eslint-disable-next-line import/first -- module-scope import, hoisted per ESM semantics
 import { waitForVideo } from '../src/tools/waitForVideo.js';
+// eslint-disable-next-line import/first -- module-scope import, hoisted per ESM semantics
+import { stitchVideos } from '../src/tools/stitchVideos.js';
+
+describe('stitch_videos', () => {
+  it('rejects zero clips, >10 clips, and non-https URLs', () => {
+    expect(stitchVideos.inputSchema.safeParse({ videoUrls: [] }).success).toBe(false);
+    expect(
+      stitchVideos.inputSchema.safeParse({
+        videoUrls: Array.from({ length: 11 }, (_, i) => `https://cdn/x${i}.mp4`),
+      }).success,
+    ).toBe(false);
+    expect(
+      stitchVideos.inputSchema.safeParse({ videoUrls: ['http://cdn/insecure.mp4'] }).success,
+    ).toBe(false);
+  });
+
+  it('accepts the full shape with per-clip engines and captions incl. nulls', () => {
+    const parsed = stitchVideos.inputSchema.safeParse({
+      videoUrls: ['https://cdn/a.mp4', 'https://cdn/b.mp4'],
+      engines: ['sora', null],
+      useCrossfade: true,
+      crossfadeDuration: 0.8,
+      captions: ['Scene one dialogue', null],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('forwards the API-friendly shape and passes warning through', async () => {
+    const client = new UgcCopilotClient({ apiKey: 'ugc_live_x' });
+    const spy = vi.spyOn(client, 'callApi').mockResolvedValue({
+      videoUrl: 'https://signed/final.mp4',
+      mimeType: 'video/mp4',
+      warning: 'captions skipped',
+    });
+    const result = await stitchVideos.handler(
+      {
+        videoUrls: ['https://cdn/a.mp4', 'https://cdn/b.mp4'],
+        engines: ['sora', null],
+        captions: ['hello', null],
+      } as never,
+      client,
+    );
+    expect(spy).toHaveBeenCalledWith('proxyStitchVideos', {
+      videoUrls: ['https://cdn/a.mp4', 'https://cdn/b.mp4'],
+      engines: ['sora', null],
+      captions: ['hello', null],
+    });
+    const payload = JSON.parse((result as { content: Array<{ text: string }> }).content[0].text);
+    expect(payload.videoUrl).toBe('https://signed/final.mp4');
+    expect(payload.warning).toBe('captions skipped');
+  });
+
+  it('description carries the load-bearing facts: free, permanent URL, ~50s limit', () => {
+    const d = stitchVideos.description;
+    expect(d).toMatch(/NO credits/);
+    expect(d).toMatch(/PERMANENT signed URL/);
+    expect(d).toMatch(/~50s/);
+  });
+});
 
 describe('Tool metadata (Claude connector directory requirements)', () => {
   const ALL = [
@@ -762,6 +821,7 @@ describe('Tool metadata (Claude connector directory requirements)', () => {
     waitForVideo,
     fetchVideo,
     applyTextOverlay,
+    stitchVideos,
   ];
   // No persistent side effects AND no credit charge: free previews + render polls/reads.
   const READ_ONLY = new Set([
@@ -775,7 +835,7 @@ describe('Tool metadata (Claude connector directory requirements)', () => {
   ]);
 
   it('every tool has a display title, annotations, and a name ≤64 chars', () => {
-    expect(ALL).toHaveLength(13);
+    expect(ALL).toHaveLength(14);
     for (const tool of ALL) {
       expect(tool.title, tool.name).toBeTruthy();
       expect(tool.name.length, tool.name).toBeLessThanOrEqual(64);

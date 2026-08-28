@@ -41,7 +41,7 @@ describe('createServer', () => {
     delete process.env.UGC_COPILOT_API_KEY;
   });
 
-  it('returns an MCP server that registers all 13 tools', async () => {
+  it('returns an MCP server that registers all 14 tools', async () => {
     const server = createServer({ client: new UgcCopilotClient() });
 
     // Probe internal handlers via the SDK's internal request handling. Since the SDK
@@ -60,7 +60,7 @@ describe('createServer', () => {
     const resp = (await listHandler({ method: 'tools/list', params: {} })) as {
       tools: ListedTool[];
     };
-    expect(resp.tools).toHaveLength(13);
+    expect(resp.tools).toHaveLength(14);
     const generateScript = resp.tools.find((t) => t.name === 'generate_script');
     expect(generateScript?.description).toContain('UGC_COPILOT_API_KEY is not set');
     const analyzeTrends = resp.tools.find((t) => t.name === 'analyze_trends');
@@ -75,6 +75,13 @@ describe('createServer', () => {
     for (const tool of resp.tools) {
       expect(tool.title, tool.name).toBeTruthy();
       expect(tool.annotations, tool.name).toBeDefined();
+      // Claude's directory review reads the display title from
+      // ToolAnnotations.title — the top-level Tool.title alone left all 13
+      // tools flagged "Missing annotations: title" in the submission UI.
+      expect(
+        (tool.annotations as { title?: string }).title,
+        tool.name,
+      ).toBe(tool.title);
     }
   });
 });
@@ -111,9 +118,9 @@ describe('createServer remote mode', () => {
 });
 
 describe('tool-name exports for the hosted 401 gate', () => {
-  it('partition all 13 tools into 4 free + 9 auth with no overlap', () => {
+  it('partition all 14 tools into 4 free + 10 auth with no overlap', () => {
     expect(FREE_TOOL_NAMES.size).toBe(4);
-    expect(AUTH_TOOL_NAMES.size).toBe(9);
+    expect(AUTH_TOOL_NAMES.size).toBe(10);
     for (const name of FREE_TOOL_NAMES) {
       expect(AUTH_TOOL_NAMES.has(name), name).toBe(false);
     }

@@ -25,6 +25,7 @@ import { checkVideoStatus } from './tools/checkVideoStatus.js';
 import { waitForVideo } from './tools/waitForVideo.js';
 import { fetchVideo } from './tools/fetchVideo.js';
 import { applyTextOverlay } from './tools/applyTextOverlay.js';
+import { stitchVideos } from './tools/stitchVideos.js';
 import type { ToolDefinition } from './tools/types.js';
 
 const FREE_TOOLS: Array<ToolDefinition<unknown>> = [
@@ -44,6 +45,7 @@ const AUTH_TOOLS: Array<ToolDefinition<unknown>> = [
   waitForVideo,
   fetchVideo,
   applyTextOverlay,
+  stitchVideos,
 ] as Array<ToolDefinition<unknown>>;
 
 const ALL_TOOLS: Array<ToolDefinition<unknown>> = [...FREE_TOOLS, ...AUTH_TOOLS];
@@ -112,7 +114,10 @@ export function createServer(options: CreateServerOptions = {}): Server {
           name: tool.name,
           title: tool.title,
           description,
-          annotations: tool.annotations,
+          // Claude's directory review reads the display title from
+          // ToolAnnotations.title; the top-level `title` alone leaves every tool
+          // flagged "Missing annotations: title" in the submission review UI.
+          annotations: { title: tool.title, ...tool.annotations },
           inputSchema: zodToJsonSchema(tool.inputSchema as z.ZodTypeAny, {
             target: 'jsonSchema7',
           }),
