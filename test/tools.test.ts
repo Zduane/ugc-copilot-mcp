@@ -773,13 +773,20 @@ describe('stitch_videos', () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("engines only accepts 'sora' — every other engine value is a backend no-op or breaks the stitch", () => {
-    // 'omni' + a Storage URL makes the backend's omni download branch reject the
-    // whole call; veo/kling/seedance are silent no-ops. The schema must not offer them.
+  it('engines accepts every real engine tag (harmless no-ops post-2026-08-31 backend fix) but rejects garbage', () => {
+    // Until the backend's fetchVideoData routing fix, 'omni' + a Storage URL broke
+    // the whole stitch, so the schema was narrowed to 'sora'|null. With the routing
+    // fixed, an agent truthfully tagging clips by render engine must not be refused.
+    expect(
+      stitchVideos.inputSchema.safeParse({
+        videoUrls: ['https://cdn/a.mp4', 'https://cdn/b.mp4'],
+        engines: ['omni', 'kling'],
+      }).success,
+    ).toBe(true);
     expect(
       stitchVideos.inputSchema.safeParse({
         videoUrls: ['https://cdn/a.mp4'],
-        engines: ['omni'],
+        engines: ['betamax'],
       }).success,
     ).toBe(false);
   });

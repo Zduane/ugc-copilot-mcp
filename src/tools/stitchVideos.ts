@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import type { ToolDefinition } from './types.js';
+import { ENGINES, type ToolDefinition } from './types.js';
 
 /**
  * Wraps `proxyStitchVideos` (docs/openapi.yaml /proxyStitchVideos — the
@@ -23,18 +23,20 @@ const InputSchema = z.object({
       'Signed MP4 URLs in output order (typically from fetch_video). 1-10 clips. ' +
       'Each clip must belong to the calling account — foreign URLs are rejected.',
     ),
-  // Deliberately narrower than the OpenAPI Engine enum: 'sora' is the only value the
-  // backend acts on (the 0.5s prompt-flash trim). Passing 'omni' with a Storage URL
-  // actually breaks the whole stitch — the backend's omni download branch fires before
-  // its direct-URL handling and rejects non-Gemini hosts — and veo survives only by a
-  // substring accident. Don't offer selections that are no-ops or landmines.
+  // Full OpenAPI Engine enum. For the URL inputs this tool accepts, 'sora' is the only
+  // tag with an effect (the 0.5s prompt-flash trim) — the rest are harmless no-ops, so
+  // truthfully tagging clips by their render engine is fine. This was narrowed to
+  // 'sora'|null until 2026-08-31, when 'omni' with a Storage URL genuinely broke the
+  // stitch (the backend's omni download branch claimed URL-shaped inputs); that backend
+  // routing is fixed, so the schema no longer needs to reject honest tags.
   engines: z
-    .array(z.literal('sora').nullable())
+    .array(z.enum(ENGINES).nullable())
     .optional()
     .describe(
-      "Optional parallel array, one entry per videoUrls clip: 'sora' for an UNTRIMMED " +
-      'Sora source (applies the standard 0.5s start trim that removes the prompt-image ' +
-      'flash), null for every other clip. Omit entirely if the sources are already trimmed.',
+      "Optional parallel array, one entry per videoUrls clip, naming the engine that rendered " +
+      "it (or null if unknown). Only 'sora' changes behavior: it applies the standard 0.5s " +
+      'start trim that removes the prompt-image flash on UNTRIMMED Sora sources. Other ' +
+      'engine tags are accepted and harmless. Omit entirely if the sources are already trimmed.',
     ),
   useCrossfade: z
     .boolean()
