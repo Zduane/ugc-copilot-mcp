@@ -289,13 +289,17 @@ describeSmoke('Smoke — authenticated tier (UGC_COPILOT_API_KEY required)', () 
     async () => {
       // Validation path test — backend rejects before reserving credits, so this
       // is free. Confirms the contract behind render_video's description warning.
+      // Must use an image-only engine: since the Sora retirement (main #608) the
+      // backend coerces sora → seedance, and seedance non-faceless legitimately
+      // renders text-to-video with no sceneImage — a sora request here starts a
+      // real 36cr render that nobody collects (VIDEO_OP_UNDELIVERED alert).
       let caught: unknown;
       try {
         await renderVideo.handler(
           {
             visualPrompt: 'a creator unboxing a brush',
-            engine: 'sora',
-            modelName: 'sora-2',
+            engine: 'kling',
+            modelName: 'fal-ai/kling-video/v3/standard/image-to-video',
           },
           client,
         );
