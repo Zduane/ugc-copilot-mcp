@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { ENGINES, PROJECT_MODES, type ToolDefinition } from './types.js';
+import { PROJECT_MODES, RENDER_ENGINES, type ToolDefinition } from './types.js';
 
 /**
  * Whitelist of valid model names per engine. Mirrors the backend whitelist at
@@ -15,7 +15,7 @@ import { ENGINES, PROJECT_MODES, type ToolDefinition } from './types.js';
  * backend may also internally route to FAST_TEXT_TO_VIDEO during 422 fallback.
  */
 const VALID_MODELS_BY_ENGINE = {
-  sora: ['sora-2', 'sora-2-pro'],
+  // No sora: OpenAI shut the Sora API down 2026-09-24 (RENDER_ENGINES in types.ts).
   veo: ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview'],
   kling: [
     'fal-ai/kling-video/v3/standard/image-to-video',
@@ -41,34 +41,51 @@ const VALID_MODELS_BY_ENGINE = {
   omni: ['gemini-omni-flash-preview'],
 } as const;
 
+// The imageUrl generate_image returns. The backend reads that stored image directly —
+// but only the caller's OWN generated images in UGC Copilot's bucket; any other URL is a
+// 400 (no charge). Checked here too so a foreign URL fails before the network call.
+const GENERATED_IMAGE_URL_PREFIX = 'https://firebasestorage.googleapis.com/';
+
 const SceneImageSchema = z
-  .object({
-    data: z.string().describe("Base64-encoded image data (no 'data:' prefix)."),
-    mimeType: z.string().describe('e.g. "image/png" or "image/jpeg".'),
-  })
+  .union([
+    z.object({
+      data: z.string().describe("Base64-encoded image data (no 'data:' prefix)."),
+      mimeType: z.string().describe('e.g. "image/png" or "image/jpeg".'),
+    }),
+    z
+      .string()
+      .url()
+      .refine((u) => u.startsWith(GENERATED_IMAGE_URL_PREFIX), {
+        message:
+          'sceneImage as a URL must be the imageUrl generate_image returned for this account. ' +
+          'For any other image, send { data, mimeType } with the raw base64 bytes.',
+      }),
+  ])
   .describe(
-    'Reference image for the render. Required by the backend for sora, veo, and kling — ' +
-    "it's the visual seed every engine builds the video around. " +
-    'The only path that runs without sceneImage is seedance text-to-video (engine="seedance" with isFaceless=false). ' +
-    "If you don't have an image, call generate_image first and pass its base64 output here " +
-    "(strip the 'data:image/png;base64,' prefix; the data field expects raw base64 only).",
+    'Reference image for the render: EITHER the imageUrl generate_image returned (pass it as-is) ' +
+    'OR { data, mimeType } with raw base64 (no "data:" prefix). Other URLs are rejected. ' +
+    'Required for veo and kling, and for seedance when isFaceless=true. ' +
+    'Seedance non-faceless runs without one (text-to-video: the person is generated from the prompt) — ' +
+    'and Seedance REJECTS a reference image that contains a person, so for a person on camera from a ' +
+    'specific image use kling.',
   );
 
 const InputSchema = z.object({
   visualPrompt: z.string().min(1).describe('Visual prompt describing the scene to render.'),
   engine: z
-    .enum(ENGINES)
+    .enum(RENDER_ENGINES)
     .describe(
-      'Engine: sora (cinematic), veo (fast/fixed-cost), kling (image-to-video), seedance (low-cost duration-scaled), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ). ' +
+      'Engine: seedance (low-cost, duration-scaled; text-to-video or faceless image-to-video), kling (image-to-video — keeps the person in your image), veo (fixed cost, best face consistency), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ). ' +
+      'Sora is retired (OpenAI shut its API down 2026-09-24) and is not offered. ' +
       'Cost for an 8-SECOND render, cheapest first (every engine scales linearly with duration except veo, which is fixed): ' +
-      'sora std (18) < seedance std (36) < kling std / omni / veo std (40) < kling hq (63) < sora hq (65) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < veo hq (130) < kling 4k (163). ' +
+      'seedance std (36) < kling std / omni / veo std (40) < kling hq (63) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < veo hq (130) < kling 4k (163). ' +
       'Kling motion-control bills its own table: std 44 / pro 88 at 8s. ' +
       'Pick the cheapest that meets the stated need unless the user chose otherwise.',
     ),
   modelName: z
     .string()
     .describe(
-      'Engine-specific model. Sora: "sora-2" (FAST) | "sora-2-pro" (HQ). ' +
+      'Engine-specific model. ' +
       'Veo: "veo-3.1-fast-generate-preview" (FAST) | "veo-3.1-generate-preview" (HQ). ' +
       'Kling: "fal-ai/kling-video/v3/standard/image-to-video" (FAST), "/pro/image-to-video" (HQ), ' +
       '"/4k/image-to-video" (ULTRA, native 4K), or "/standard/motion-control" / "/pro/motion-control" (clone-video only). ' +
@@ -85,13 +102,12 @@ const InputSchema = z.object({
     .max(30)
     .optional()
     .describe(
-      'Render duration in seconds, snapped/clamped per engine: Sora up to 20, Veo up to 8, ' +
+      'Render duration in seconds, snapped/clamped per engine: Veo up to 8, ' +
       'Kling up to 15, Seedance 2.0 up to 15, Seedance 2.5 (bytedance/seedance-2.5/* models) up to 30, ' +
       'Omni up to 10. Values above an engine\'s cap are clamped and billed at the clamped duration — ' +
       'check effectiveDuration/durationSnapped in the response. Cost scales linearly: a 30s Seedance 2.5 ' +
       'render bills 30/4 × the ultra base.',
     ),
-  editVideoId: z.string().optional().describe('Sora extend flow — source video ID to extend.'),
   isFaceless: z.boolean().optional(),
   aspectRatio: z
     .enum(['9:16', '16:9', '1:1', '4:5'])
@@ -122,7 +138,7 @@ const InputSchema = z.object({
       'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
       'no clothing or scene context). When set, the engine character block uses this verbatim so the same ' +
       'person reappears across every render_video call for this character. Pass the same string on each ' +
-      'scene to keep the character consistent. Read by sora / kling / seedance; veo intentionally ignores ' +
+      'scene to keep the character consistent. Read by kling / seedance; veo intentionally ignores ' +
       'it (veo gets identity from sceneImage instead — its safety filter trips on detailed physical ' +
       'descriptions alongside an I2V reference). Cap is 2000 chars (kling further truncates to 800 due ' +
       'to its 2500-char total prompt cap); backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped.',
@@ -135,7 +151,7 @@ const InputSchema = z.object({
     .optional()
     .describe(
       'Optional reproducibility seed, honored only by kling, seedance, and kling motion-control ' +
-      '(sora/veo/omni have no seed parameter and silently ignore it). Re-rendering with the same ' +
+      '(veo/omni have no seed parameter and silently ignore it). Re-rendering with the same ' +
       'seed and inputs reproduces the same generation — useful for comparing prompt iterations. ' +
       'An out-of-range or non-integer value is ignored server-side (render proceeds unseeded, ' +
       'reported as an INVALID_SEED_IGNORED advisory). Do NOT pass a seed alongside ' +
@@ -176,6 +192,10 @@ interface StartResult {
   effectiveDuration?: number;
   creditCost?: number;
   quality?: 'standard' | 'hq' | 'ultra';
+  // The engine + model that ACTUALLY rendered. The backend can differ from the request
+  // (a retired engine is re-routed), and polling / stitching must use what rendered.
+  engine?: string;
+  modelName?: string;
 }
 
 export const renderVideo: ToolDefinition<Input> = {
@@ -184,23 +204,27 @@ export const renderVideo: ToolDefinition<Input> = {
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   description:
     'Start an asynchronous video render. Returns an operationName immediately; credits are deducted at this call. ' +
-    'SPENDS THE USER\'S CREDITS — the same request can cost anywhere from 9 to 450 credits depending on the engine, model, and duration YOU pick, ' +
+    'SPENDS THE USER\'S CREDITS — the same request can cost anywhere from 18 to 450 credits depending on the engine, model, and duration YOU pick, ' +
     'and this tool requires you to pick them. Before calling: (1) state which engine + model you intend to use and ' +
     'what it will cost, and (2) get the user\'s go-ahead. Skip the confirmation ONLY when the user named a specific ' +
     'engine or quality tier, or gave a standing instruction not to ask before spending. A bare request to render ' +
     'something ("render a video of X") is a REQUEST, not that instruction — confirm first. ' +
-    'DEFAULT TO THE CHEAPEST option that satisfies the request — sora "sora-2" (18 for 8s; the cheapest at every ' +
-    'duration), then seedance "/fast/image-to-video" (36 for 8s). Cheapest means TOTAL credits for the whole chain, ' +
-    'including any generate_image call: sora-2 at 4s (9) plus a 1-credit image is 10 total, cheaper than seedance ' +
-    'text-to-video (18) even though the latter needs no image. Do not pick a pricier engine just to skip a 1-credit step. ' +
+    'DEFAULT TO THE CHEAPEST option that satisfies the request. For 8 seconds that is seedance (36): ' +
+    '"/fast/text-to-video" when a person is on camera (no image needed — the person is generated from the prompt), or ' +
+    '"/fast/image-to-video" with isFaceless=true for a hands/product-only shot. When the person must come FROM A SPECIFIC ' +
+    'IMAGE, use kling "/standard/image-to-video" (40) — Seedance rejects reference images that contain a person. ' +
+    'Cheapest means TOTAL credits for the whole chain, including any generate_image call: seedance text-to-video (36) ' +
+    'needs no image, while kling (40) plus a 1-credit image is 41 total. Do not add an image step the engine does not need, ' +
+    'and do not pick a pricier engine just to skip a 1-credit step. ' +
     'Reach for hq / 4k / veo ONLY when the user asks for maximum quality or a capability ' +
     'only that engine has; never infer it from adjectives like "cinematic" or "high quality" in a scene description, ' +
     'which describe the SHOT, not the budget. Duration multiplies cost, so do not raise duration beyond what was asked. ' +
-    'Cost varies by engine, quality, and duration: Sora std=18 / hq=65 (8s baseline), Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration) — e.g. a 30s Seedance 2.5 render is 450. ' +
-    'IMPORTANT — sceneImage is REQUIRED for sora/veo/kling and for seedance-faceless. ' +
+    'Cost varies by engine, quality, and duration: Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration) — e.g. a 30s Seedance 2.5 render is 450. ' +
+    'IMPORTANT — sceneImage is REQUIRED for veo/kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
-    'generate_image (with a useful productDescription) → strip the data: prefix → pass to render_video as sceneImage. ' +
-    'After render_video returns, call wait_for_video (polls with backoff up to ~50s) or check_video_status (single poll) until done, then fetch_video for the MP4 URL. ' +
+    'generate_image (with a useful productDescription) → pass its imageUrl to render_video as sceneImage, unchanged. ' +
+    'After render_video returns, call wait_for_video (polls with backoff up to ~50s) or check_video_status (single poll) ' +
+    'with the operationName AND the engine this tool returns (the engine that actually rendered), then fetch_video for the MP4 URL. ' +
     'Requires authentication (connected UGC Copilot account or API key).',
   inputSchema: InputSchema,
   handler: async (input, client) => {
@@ -211,7 +235,6 @@ export const renderVideo: ToolDefinition<Input> = {
     };
     if (input.sceneImage) body.sceneImage = input.sceneImage;
     if (input.duration) body.duration = input.duration;
-    if (input.editVideoId) body.editVideoId = input.editVideoId;
     if (input.isFaceless !== undefined) body.isFaceless = input.isFaceless;
     if (input.aspectRatio) body.aspectRatio = input.aspectRatio;
     if (input.projectMode) body.projectMode = input.projectMode;
@@ -238,9 +261,13 @@ export const renderVideo: ToolDefinition<Input> = {
       typeof result.requestedDuration === 'number' &&
       typeof result.effectiveDuration === 'number' &&
       result.requestedDuration !== result.effectiveDuration;
+    // Report what rendered, not what was asked for: poll/fetch/stitch must name the
+    // engine that ran the job (stitch_videos, for one, applies engine-specific trims).
+    const renderedEngine = result.engine ?? input.engine;
     return toolJson({
       operationName: result.operation.name,
-      engine: input.engine,
+      engine: renderedEngine,
+      modelName: result.modelName ?? input.modelName,
       requestedDuration: result.requestedDuration ?? null,
       effectiveDuration: result.effectiveDuration ?? null,
       creditCost: result.creditCost ?? null,
@@ -248,8 +275,8 @@ export const renderVideo: ToolDefinition<Input> = {
       durationSnapped: durationWasSnapped,
       assembledPrompt: result.assembledPrompt ?? null,
       hint: durationWasSnapped
-        ? `Note: requested duration ${result.requestedDuration}s was snapped to ${result.effectiveDuration}s (engine-specific allowed values). You were charged ${result.creditCost} credits. Call wait_for_video with this operationName + engine.`
-        : 'Call wait_for_video with this operationName + engine, OR check_video_status periodically (15s start, ×1.2 backoff up to 60s).',
+        ? `Note: requested duration ${result.requestedDuration}s was snapped to ${result.effectiveDuration}s (engine-specific allowed values). You were charged ${result.creditCost} credits. Call wait_for_video with this operationName + engine "${renderedEngine}".`
+        : `Call wait_for_video with this operationName + engine "${renderedEngine}", OR check_video_status periodically (15s start, ×1.2 backoff up to 60s).`,
     });
   },
 };
