@@ -65,7 +65,15 @@ export const FREE_TOOL_INDUSTRIES = [
 export const PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;
 
 // 'omni' = Gemini Omni Flash (preview) — 720p, 4–10s, 16:9/9:16 only, no HQ tier.
+// Full OpenAPI Engine enum. 'sora' stays here for tools that name an EXISTING render
+// (check_video_status / wait_for_video / fetch_video / stitch_videos): OpenAI shut the
+// Sora API down 2026-09-24 and the backend renders any 'sora' request on Seedance or
+// Kling, so a caller may still hold 'sora' for one of those renders.
 export const ENGINES = ['sora', 'veo', 'kling', 'seedance', 'omni'] as const;
+
+// Engines a NEW render can target. No 'sora' — it is retired, and an agent that asks
+// for it is billed at the replacement engine's price, not Sora's.
+export const RENDER_ENGINES = ['veo', 'kling', 'seedance', 'omni'] as const;
 
 export const QUALITIES = ['standard', 'hq'] as const;
 

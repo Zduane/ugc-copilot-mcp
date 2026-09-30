@@ -60,10 +60,11 @@ describe('Tool input validation', () => {
     // deliberate (agent salience) — a rewording that downcases it should
     // trip this test and be re-considered, not waved through.
     expect(d).toMatch(/SPENDS THE USER'S CREDITS/);
-    // The true spend range, matching the mcp.json credit hint ("9-450"):
-    // sora std at 4s = 9, seedance 2.5 at 30s = 450. The first cut of this
-    // guard pinned "18 or 130", which understated the ceiling 3.5x.
-    expect(d).toMatch(/9 to 450/);
+    // The true spend range, matching the mcp.json credit hint ("18-450"):
+    // seedance std at 4s = 18, seedance 2.5 at 30s = 450. (The floor was sora std
+    // at 4s = 9 until Sora's retirement; a 'sora' request is billed as Seedance or
+    // Kling now, so quoting 9 understated every such render.)
+    expect(d).toMatch(/18 to 450/);
     // Instructs confirm-before-spend, with the explicit opt-out so it doesn't nag
     // users who already stated a preference.
     expect(d).toMatch(/get the user's go-ahead/i);
@@ -76,11 +77,20 @@ describe('Tool input validation', () => {
     expect(d).toMatch(/Skip the confirmation ONLY when/);
     expect(d).toMatch(/standing instruction/i);
     expect(d).toMatch(/is a REQUEST, not that instruction/);
-    // Cheapest = the whole chain's total, with the worked example that caught
-    // this live: seedance t2v (18) picked over sora-2 + image (10 total) just
-    // to skip a 1-credit step.
+    // Cheapest = the whole chain's total, with a worked example: seedance t2v (36)
+    // needs no image, kling + a 1-credit image is 41 total.
     expect(d).toMatch(/TOTAL credits for the whole chain/);
-    expect(d).toMatch(/10 total/);
+    expect(d).toMatch(/41 total/);
+    // Seedance rejects a reference image with a person in it — the agent must be told
+    // to use kling for a person from a specific image, or it picks the cheaper engine
+    // and the render is blocked (2026-09-30 prod).
+    expect(d).toMatch(/Seedance rejects reference images that contain a person/);
+    // generate_image returns a URL; the chain must say to pass it unchanged, not to
+    // "strip the data: prefix" from something that has none.
+    expect(d).toMatch(/pass its imageUrl to render_video as sceneImage/);
+    expect(d).not.toMatch(/strip the data: prefix/);
+    // Retired engine never offered as a default.
+    expect(d).not.toMatch(/sora/i);
     // Instructs cheapest-by-default, and inoculates against the specific failure
     // mode of reading "cinematic" in a scene prompt as a budget instruction.
     expect(d).toMatch(/DEFAULT TO THE CHEAPEST/);
@@ -96,11 +106,14 @@ describe('Tool input validation', () => {
     // Pin the CONTENT, not just the phrase: the table must be normalized to a
     // single duration (the first cut chained numbers quoted at four different
     // baselines with '<', which produced an ordering that was wrong at every
-    // real duration), sora std must be the stated floor, and the tiers a model
+    // real duration), seedance std must be the stated floor, and the tiers a model
     // can legally pick must all be present — kling 4k's 163 ceiling, seedance
-    // 2.5 ultra, omni, and motion-control's separate table.
+    // 2.5 ultra, omni, and motion-control's separate table. Sora appears only as
+    // retired, never with a price.
     expect(engineDesc).toMatch(/8-SECOND/);
-    expect(engineDesc).toMatch(/sora std \(18\)/);
+    expect(engineDesc).toMatch(/cheapest first[^]*: seedance std \(36\) </i);
+    expect(engineDesc).not.toMatch(/sora (std|hq)/i);
+    expect(engineDesc).toMatch(/Sora is retired/);
     expect(engineDesc).toMatch(/kling 4k \(163\)/);
     expect(engineDesc).toMatch(/seedance 2\.5 ultra/);
     expect(engineDesc).toMatch(/omni/);
@@ -115,9 +128,8 @@ describe('Tool input validation', () => {
   it('render_video accepts valid engine/modelName combinations', () => {
     // One canonical example per engine — proves the whitelist exists and is open.
     const cases = [
-      { engine: 'sora', modelName: 'sora-2' },
-      { engine: 'sora', modelName: 'sora-2-pro' },
       { engine: 'veo', modelName: 'veo-3.1-generate-preview' },
+      { engine: 'omni', modelName: 'gemini-omni-flash-preview' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/image-to-video' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/4k/image-to-video' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/motion-control' },
@@ -149,16 +161,37 @@ describe('Tool input validation', () => {
     expect(bogus.success).toBe(false);
   });
 
-  it('render_video rejects engine/model mismatch (sora engine + veo model)', () => {
+  it('render_video rejects engine/model mismatch (kling engine + veo model)', () => {
     const parsed = renderVideo.inputSchema.safeParse({
       visualPrompt: 'a creator',
-      engine: 'sora',
+      engine: 'kling',
       modelName: 'veo-3.1-generate-preview',
     });
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => i.message).join(' ');
-      expect(issues).toMatch(/not a valid model for engine 'sora'/i);
+      expect(issues).toMatch(/not a valid model for engine 'kling'/i);
+    }
+  });
+
+  it('render_video no longer offers the retired sora engine', () => {
+    // OpenAI shut the Sora API down 2026-09-24. The backend still accepts 'sora' and
+    // renders it on Seedance or Kling at THAT engine's price, so offering it here only
+    // mis-prices the render in the agent's eyes.
+    for (const modelName of ['sora-2', 'sora-2-pro']) {
+      expect(renderVideo.inputSchema.safeParse({ visualPrompt: 'a creator', engine: 'sora', modelName }).success).toBe(false);
+    }
+  });
+
+  it('render_video rejects a sceneImage URL that is not a generated image', () => {
+    for (const sceneImage of ['https://cdn.example.com/scene.png', 'http://firebasestorage.googleapis.com/v0/b/x/o/y.png', 'data:image/png;base64,AAAA']) {
+      const parsed = renderVideo.inputSchema.safeParse({
+        visualPrompt: 'a creator',
+        engine: 'kling',
+        modelName: 'fal-ai/kling-video/v3/standard/image-to-video',
+        sceneImage,
+      });
+      expect(parsed.success).toBe(false);
     }
   });
 
@@ -237,7 +270,7 @@ describe('Tool input validation', () => {
         isFaceless: true,
         projectMode: 'creator',
         audioMode: 'voiceover',
-        engine: 'sora',
+        engine: 'kling',
       }).success,
     ).toBe(true);
   });
@@ -346,6 +379,61 @@ describe('Authenticated tool handler wiring', () => {
     vi.restoreAllMocks();
   });
 
+  it("render_video accepts generate_image's imageUrl as sceneImage and forwards it unchanged", async () => {
+    const imageUrl = 'https://firebasestorage.googleapis.com/v0/b/test/o/generated_images%2Fuid%2F1.png?alt=media&token=t';
+    const input = {
+      visualPrompt: 'a creator',
+      engine: 'kling' as const,
+      modelName: 'fal-ai/kling-video/v3/standard/image-to-video',
+      sceneImage: imageUrl,
+    };
+    expect(renderVideo.inputSchema.safeParse(input).success).toBe(true);
+
+    let sentBody: Record<string, unknown> = {};
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      sentBody = JSON.parse(String(init.body));
+      return okJson({ operation: { name: 'kling-op-url' }, assembledPrompt: 'p' });
+    });
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    await renderVideo.handler(input, client);
+    expect(sentBody.sceneImage).toBe(imageUrl);
+  });
+
+  it('render_video reports the engine the backend ACTUALLY rendered on, not the requested one', async () => {
+    // The backend re-routes retired engines and returns { engine, modelName }. Echoing the
+    // request's engine made agents poll and stitch real Seedance/Kling clips as 'sora' —
+    // and stitch_videos trims 0.5s off every 'sora'-tagged clip.
+    const fetchMock = vi.fn().mockResolvedValue(
+      okJson({
+        operation: { name: 'op-rerouted' },
+        assembledPrompt: 'p',
+        engine: 'kling',
+        modelName: 'fal-ai/kling-video/v3/standard/image-to-video',
+      }),
+    );
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    const result = await renderVideo.handler(
+      { visualPrompt: 'a person', engine: 'seedance', modelName: 'bytedance/seedance-2.0/fast/text-to-video' },
+      client,
+    );
+    const out = JSON.parse(result.content[0]!.text);
+    expect(out.engine).toBe('kling');
+    expect(out.modelName).toBe('fal-ai/kling-video/v3/standard/image-to-video');
+    expect(out.hint).toContain('"kling"');
+  });
+
+  it('render_video falls back to the requested engine when the response omits it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okJson({ operation: { name: 'op-plain' }, assembledPrompt: 'p' }));
+    const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+    const result = await renderVideo.handler(
+      { visualPrompt: 'a person', engine: 'seedance', modelName: 'bytedance/seedance-2.0/fast/text-to-video' },
+      client,
+    );
+    const out = JSON.parse(result.content[0]!.text);
+    expect(out.engine).toBe('seedance');
+    expect(out.modelName).toBe('bytedance/seedance-2.0/fast/text-to-video');
+  });
+
   it('analyze_market makes both upstream calls in parallel', async () => {
     const callsByEndpoint: Record<string, number> = {};
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
@@ -383,7 +471,7 @@ describe('Authenticated tool handler wiring', () => {
       .mockResolvedValue(okJson({ operation: { name: 'sora-op-abc' }, assembledPrompt: 'final prompt' }));
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
     const result = await renderVideo.handler(
-      { visualPrompt: 'a person', engine: 'sora', modelName: 'sora-2' },
+      { visualPrompt: 'a person', engine: 'seedance', modelName: 'bytedance/seedance-2.0/fast/text-to-video' },
       client,
     );
     expect(result.content[0]!.text).toContain('sora-op-abc');
@@ -405,8 +493,8 @@ describe('Authenticated tool handler wiring', () => {
     await renderVideo.handler(
       {
         visualPrompt: 'a person',
-        engine: 'sora',
-        modelName: 'sora-2',
+        engine: 'seedance',
+        modelName: 'bytedance/seedance-2.0/fast/text-to-video',
         qcRetryOfOperation: 'ops_abc123',
       },
       client,
@@ -421,7 +509,7 @@ describe('Authenticated tool handler wiring', () => {
       return okJson({ operation: { name: 'sora-op-1' }, assembledPrompt: 'p' });
     });
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    await renderVideo.handler({ visualPrompt: 'a person', engine: 'sora', modelName: 'sora-2' }, client);
+    await renderVideo.handler({ visualPrompt: 'a person', engine: 'seedance', modelName: 'bytedance/seedance-2.0/fast/text-to-video' }, client);
     expect('qcRetryOfOperation' in sentBody).toBe(false);
   });
 
@@ -448,7 +536,7 @@ describe('Authenticated tool handler wiring', () => {
       return okJson({ operation: { name: 'sora-op-1' }, assembledPrompt: 'p' });
     });
     const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
-    await renderVideo.handler({ visualPrompt: 'a person', engine: 'sora', modelName: 'sora-2' }, client);
+    await renderVideo.handler({ visualPrompt: 'a person', engine: 'seedance', modelName: 'bytedance/seedance-2.0/fast/text-to-video' }, client);
     expect('seed' in sentBody).toBe(false);
   });
 
@@ -611,7 +699,7 @@ describe('Authenticated tool handler wiring', () => {
         isFaceless: true,
         projectMode: 'creator',
         audioMode: 'voiceover',
-        engine: 'sora',
+        engine: 'kling',
       },
       client,
     );
@@ -623,7 +711,7 @@ describe('Authenticated tool handler wiring', () => {
       isFaceless: true,
       projectMode: 'creator',
       audioMode: 'voiceover',
-      engine: 'sora',
+      engine: 'kling',
     });
   });
 

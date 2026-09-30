@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { AUDIO_MODES, ENGINES, PROJECT_MODES, type ToolDefinition } from './types.js';
+import { AUDIO_MODES, PROJECT_MODES, RENDER_ENGINES, type ToolDefinition } from './types.js';
 
 const InputSchema = z.object({
   rawScript: z
@@ -29,9 +29,9 @@ const InputSchema = z.object({
     .optional()
     .describe('Audio treatment override. voiceover = all scenes VO; dialogue = on-camera dialogue allowed; background = music/ambient only.'),
   engine: z
-    .enum(ENGINES)
+    .enum(RENDER_ENGINES)
     .optional()
-    .describe('Target video engine (sora | veo | kling | seedance). Passed to the AI as parsing context — soft hint only, does not enforce duration limits.'),
+    .describe('Target video engine (veo | kling | seedance | omni). Passed to the AI as parsing context — soft hint only, does not enforce duration limits.'),
 });
 
 type Input = z.infer<typeof InputSchema>;
