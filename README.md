@@ -105,6 +105,20 @@ Video render costs vary by engine, quality, and duration:
 
 Sora 2 is retired (OpenAI shut its API down on 2026-09-24).
 
+## Upgrading from 0.5.x — Veo 3.1 retired
+
+Google shuts the Veo 3.1 preview models down on 2026-10-22, so `render_video` no longer accepts `engine: "veo"`.
+Replace it in saved agent prompts and workflows:
+
+| Before (0.5.x) | Now |
+|---|---|
+| `engine: "veo"`, `modelName: "veo-3.1-fast-generate-preview"` or `"veo-3.1-generate-preview"` | `engine: "omni"`, `modelName: "gemini-omni-1.1-flash"` (image-to-video or text-to-video, native audio, 40 credits per 8s, 720p) |
+| `engine: "veo"` for an exact face from a specific image | `engine: "kling"`, `modelName: "fal-ai/kling-video/v3/standard/image-to-video"` |
+| `modelName: "gemini-omni-flash-preview"` | `modelName: "gemini-omni-1.1-flash"` (the preview id is still accepted for now and renders on the GA model) |
+
+Passing `veo` returns a validation error that names the replacement. `check_video_status`, `wait_for_video`, `fetch_video`
+and `stitch_videos` still accept `veo` for renders that already exist, and `parse_own_script` treats a `veo` hint as `omni`.
+
 ## Long-running video renders
 
 `render_video` returns an `operationName` immediately. To get the final MP4:

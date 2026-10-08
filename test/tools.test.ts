@@ -165,14 +165,40 @@ describe('Tool input validation', () => {
     expect(bogus.success).toBe(false);
   });
 
-  it('render_video no longer offers the retired veo engine for new renders', () => {
+  it('render_video no longer offers the retired veo engine — and the error names its replacement', () => {
     // Google shuts the Veo 3.1 previews down 2026-10-22; the backend renders veo on Omni.
+    // A bare "Invalid enum value" left agents guessing (e.g. seedance, which rejects a
+    // person in the reference image), so the message must point at omni.
     const parsed = renderVideo.inputSchema.safeParse({
       visualPrompt: 'a creator',
       engine: 'veo',
       modelName: 'veo-3.1-generate-preview',
     });
     expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const messages = parsed.error.issues.map((i) => i.message).join(' ');
+      expect(messages).toMatch(/Veo 3\.1 is retired/);
+      expect(messages).toMatch(/engine 'omni'/);
+      expect(messages).toMatch(/gemini-omni-1\.1-flash/);
+    }
+  });
+
+  it('render_video names the replacements for retired sora, and keeps the default error otherwise', () => {
+    const sora = renderVideo.inputSchema.safeParse({ visualPrompt: 'a creator', engine: 'sora', modelName: 'sora-2' });
+    expect(sora.success).toBe(false);
+    if (!sora.success) expect(sora.error.issues.map((i) => i.message).join(' ')).toMatch(/Sora 2 is retired[^]*seedance[^]*kling/);
+    const bogus = renderVideo.inputSchema.safeParse({ visualPrompt: 'a creator', engine: 'runway', modelName: 'x' });
+    expect(bogus.success).toBe(false);
+    if (!bogus.success) {
+      const messages = bogus.error.issues.map((i) => i.message).join(' ');
+      expect(messages).not.toMatch(/retired/);
+      expect(messages).toMatch(/kling|seedance|omni/);
+    }
+  });
+
+  it('render_video still advertises the engine enum to agents (the custom error map keeps the schema)', () => {
+    const engineSchema = (zodToJsonSchema(renderVideo.inputSchema as any) as any).properties.engine;
+    expect(engineSchema.enum).toEqual(['kling', 'seedance', 'omni']);
   });
 
   it('render_video rejects engine/model mismatch (kling engine + veo model)', () => {
@@ -391,6 +417,23 @@ describe('Authenticated tool handler wiring', () => {
   afterEach(() => {
     delete process.env.UGC_COPILOT_API_KEY;
     vi.restoreAllMocks();
+  });
+
+  it('parse_own_script treats a retired engine hint as its replacement instead of failing the parse', async () => {
+    // engine is a soft parsing hint: a 0.5.x caller still sending 'veo' must not lose the call.
+    for (const [hint, forwarded] of [['veo', 'omni'], ['sora', 'seedance'], ['kling', 'kling']] as const) {
+      const input = { rawScript: 'Hey everyone, today I want to talk about this brush.', engine: hint };
+      expect(parseOwnScript.inputSchema.safeParse(input).success).toBe(true);
+      let sentBody: Record<string, unknown> = {};
+      const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        sentBody = JSON.parse(String(init.body));
+        return okJson({ scenes: [] });
+      });
+      const client = new UgcCopilotClient({ fetch: fetchMock as unknown as typeof fetch });
+      await parseOwnScript.handler(parseOwnScript.inputSchema.parse(input), client);
+      const data = (sentBody.data ?? sentBody) as Record<string, unknown>;
+      expect(data.engine).toBe(forwarded);
+    }
   });
 
   it("render_video accepts generate_image's imageUrl as sceneImage and forwards it unchanged", async () => {
