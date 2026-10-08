@@ -114,6 +114,9 @@ describe('Tool input validation', () => {
     expect(engineDesc).toMatch(/cheapest first[^]*: seedance std \(36\) </i);
     expect(engineDesc).not.toMatch(/sora (std|hq)/i);
     expect(engineDesc).toMatch(/Sora is retired/);
+    // Veo retired 2026-10-22: named only as retired, never with a price.
+    expect(engineDesc).toMatch(/Veo 3\.1 is retired/);
+    expect(engineDesc).not.toMatch(/veo (std|hq)/i);
     expect(engineDesc).toMatch(/kling 4k \(163\)/);
     expect(engineDesc).toMatch(/seedance 2\.5 ultra/);
     expect(engineDesc).toMatch(/omni/);
@@ -128,7 +131,8 @@ describe('Tool input validation', () => {
   it('render_video accepts valid engine/modelName combinations', () => {
     // One canonical example per engine — proves the whitelist exists and is open.
     const cases = [
-      { engine: 'veo', modelName: 'veo-3.1-generate-preview' },
+      { engine: 'omni', modelName: 'gemini-omni-1.1-flash' },
+      // Retired preview id: still accepted (the backend aliases it to the GA model).
       { engine: 'omni', modelName: 'gemini-omni-flash-preview' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/image-to-video' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/4k/image-to-video' },
@@ -159,6 +163,16 @@ describe('Tool input validation', () => {
       visualPrompt: 'a creator', engine: 'seedance', modelName: 'bytedance/seedance-2.5/fast/image-to-video',
     });
     expect(bogus.success).toBe(false);
+  });
+
+  it('render_video no longer offers the retired veo engine for new renders', () => {
+    // Google shuts the Veo 3.1 previews down 2026-10-22; the backend renders veo on Omni.
+    const parsed = renderVideo.inputSchema.safeParse({
+      visualPrompt: 'a creator',
+      engine: 'veo',
+      modelName: 'veo-3.1-generate-preview',
+    });
+    expect(parsed.success).toBe(false);
   });
 
   it('render_video rejects engine/model mismatch (kling engine + veo model)', () => {

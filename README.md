@@ -2,7 +2,7 @@
 
 Official MCP (Model Context Protocol) server for [UGC Copilot](https://ugccopilot.ai). Generate UGC-style video ads end-to-end from Claude Desktop, Cursor, Cline, Zed, or any MCP-compatible agent.
 
-14 tools across free + authenticated tiers wrapping the public REST API. Render with Veo 3.1, Kling 3.0, Seedance 2.0/2.5, or Gemini Omni Flash (preview). Pay-as-you-go — no subscription required.
+14 tools across free + authenticated tiers wrapping the public REST API. Render with Kling 3.0, Seedance 2.0/2.5, or Gemini Omni Flash. Pay-as-you-go — no subscription required.
 
 ## Quick start
 
@@ -98,10 +98,10 @@ You only need a key for the authenticated tier — the four free tools work with
 Credit packs (no subscription required): $9 Starter Pack (130 credits + 50 first-purchase bonus, one-time), then 200 credits / $25, 500 / $50, 2,500 / $200, 10,000 / $700 — the same rates with or without a subscription. Subscriptions include monthly bundled credits and higher concurrency caps. See <https://ugccopilot.ai/pricing>.
 
 Video render costs vary by engine, quality, and duration:
-- Veo 3.1: 40 std / 130 hq (fixed cost)
 - Kling 3.0: 32 std / 50 hq / 130 4k (6.4s baseline) — 4K is native, no upscaling
 - Seedance 2.0 / 2.5: 18 std / 35 hq / 60 ultra (2.5, launch price) (4s baseline)
-- Gemini Omni Flash (preview): 40 (8s baseline, 720p, no HQ)
+- Gemini Omni Flash: 40 (8s baseline, 720p, no HQ)
+- Veo 3.1 is retired (Google shuts it down on 2026-10-22); `veo` requests render on Gemini Omni Flash
 
 Sora 2 is retired (OpenAI shut its API down on 2026-09-24).
 

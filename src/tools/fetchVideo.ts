@@ -8,7 +8,7 @@ const InputSchema = z.object({
     .min(1)
     .describe(
       'Video URI returned by wait_for_video / check_video_status. For Sora it is the operation handle ' +
-      '(e.g. "video_..."); for Veo it is the upstream generativelanguage.googleapis.com file URL.',
+      '(e.g. "video_..."); for a (retired) Veo render it is the upstream generativelanguage.googleapis.com file URL.',
     ),
   engine: z.enum(ENGINES).describe('Engine that started the render.'),
   duration: z.number().int().min(4).max(20).optional().describe('Original render duration (passed back for trimming).'),

@@ -31,7 +31,7 @@ const InputSchema = z.object({
   engine: z
     .enum(RENDER_ENGINES)
     .optional()
-    .describe('Target video engine (veo | kling | seedance | omni). Passed to the AI as parsing context — soft hint only, does not enforce duration limits.'),
+    .describe('Target video engine (kling | seedance | omni). Passed to the AI as parsing context — soft hint only, does not enforce duration limits.'),
 });
 
 type Input = z.infer<typeof InputSchema>;
