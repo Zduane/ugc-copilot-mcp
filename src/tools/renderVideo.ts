@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { PROJECT_MODES, RENDER_ENGINES, type ToolDefinition } from './types.js';
+import { PROJECT_MODES, RENDER_ENGINES, renderEngineErrorMap, type ToolDefinition } from './types.js';
 
 /**
  * Whitelist of valid model names per engine. Mirrors the backend whitelist at
@@ -15,8 +15,8 @@ import { PROJECT_MODES, RENDER_ENGINES, type ToolDefinition } from './types.js';
  * backend may also internally route to FAST_TEXT_TO_VIDEO during 422 fallback.
  */
 const VALID_MODELS_BY_ENGINE = {
-  // No sora: OpenAI shut the Sora API down 2026-09-24 (RENDER_ENGINES in types.ts).
-  veo: ['veo-3.1-fast-generate-preview', 'veo-3.1-generate-preview'],
+  // No sora / veo: OpenAI shut the Sora API down 2026-09-24, Google shuts the Veo 3.1
+  // previews down 2026-10-22 (RENDER_ENGINES in types.ts).
   kling: [
     'fal-ai/kling-video/v3/standard/image-to-video',
     'fal-ai/kling-video/v3/pro/image-to-video',
@@ -37,8 +37,12 @@ const VALID_MODELS_BY_ENGINE = {
     'bytedance/seedance-2.5/reference-to-video',
     'bytedance/seedance-2.5/text-to-video',
   ],
-  // Gemini Omni Flash (preview) — single 720p tier, no HQ variant.
-  omni: ['gemini-omni-flash-preview'],
+  // Gemini Omni Flash — single 720p tier, no HQ variant. The GA id replaced the preview id
+  // (shut down 2026-10-22); the preview id stays accepted ONLY because the backend aliases it
+  // to the GA model (UGC-Copilot functions/index.js RETIRED_OMNI_MODEL_IDS, applied in
+  // coerceRetiredEngine). Remove it here in the same release that drops that alias — the
+  // backend would otherwise 400 it with ENGINE_MODEL_WHITELIST after passing this check.
+  omni: ['gemini-omni-1.1-flash', 'gemini-omni-flash-preview'],
 } as const;
 
 // The imageUrl generate_image returns. The backend reads that stored image directly —
@@ -64,7 +68,7 @@ const SceneImageSchema = z
   .describe(
     'Reference image for the render: EITHER the imageUrl generate_image returned (pass it as-is) ' +
     'OR { data, mimeType } with raw base64 (no "data:" prefix). Other URLs are rejected. ' +
-    'Required for veo and kling, and for seedance when isFaceless=true. ' +
+    'Required for kling, and for seedance when isFaceless=true. ' +
     'Seedance non-faceless runs without one (text-to-video: the person is generated from the prompt) — ' +
     'and Seedance REJECTS a reference image that contains a person, so for a person on camera from a ' +
     'specific image use kling.',
@@ -73,12 +77,12 @@ const SceneImageSchema = z
 const InputSchema = z.object({
   visualPrompt: z.string().min(1).describe('Visual prompt describing the scene to render.'),
   engine: z
-    .enum(RENDER_ENGINES)
+    .enum(RENDER_ENGINES, { errorMap: renderEngineErrorMap })
     .describe(
-      'Engine: seedance (low-cost, duration-scaled; text-to-video or faceless image-to-video), kling (image-to-video — keeps the person in your image), veo (fixed cost, best face consistency), omni (Gemini Omni Flash preview — fast 720p native-audio, 4-10s, 16:9/9:16 only, no HQ). ' +
-      'Sora is retired (OpenAI shut its API down 2026-09-24) and is not offered. ' +
-      'Cost for an 8-SECOND render, cheapest first (every engine scales linearly with duration except veo, which is fixed): ' +
-      'seedance std (36) < kling std / omni / veo std (40) < kling hq (63) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < veo hq (130) < kling 4k (163). ' +
+      'Engine: seedance (low-cost, duration-scaled; text-to-video or faceless image-to-video), kling (image-to-video — keeps the person in your image), omni (Gemini Omni Flash — fastest; 720p with native audio, image-to-video or text-to-video, 4-10s, 16:9/9:16 only, no HQ). ' +
+      'Sora is retired (OpenAI shut its API down 2026-09-24) and Veo 3.1 is retired (Google shuts it down 2026-10-22); neither is offered. ' +
+      'Cost for an 8-SECOND render, cheapest first (every engine scales linearly with duration): ' +
+      'seedance std (36) < kling std / omni (40) < kling hq (63) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < kling 4k (163). ' +
       'Kling motion-control bills its own table: std 44 / pro 88 at 8s. ' +
       'Pick the cheapest that meets the stated need unless the user chose otherwise.',
     ),
@@ -86,12 +90,11 @@ const InputSchema = z.object({
     .string()
     .describe(
       'Engine-specific model. ' +
-      'Veo: "veo-3.1-fast-generate-preview" (FAST) | "veo-3.1-generate-preview" (HQ). ' +
       'Kling: "fal-ai/kling-video/v3/standard/image-to-video" (FAST), "/pro/image-to-video" (HQ), ' +
       '"/4k/image-to-video" (ULTRA, native 4K), or "/standard/motion-control" / "/pro/motion-control" (clone-video only). ' +
       'Seedance: "bytedance/seedance-2.0/image-to-video" (HQ) or "/fast/image-to-video" (FAST); also reference-to-video and text-to-video variants. ' +
       'Seedance 2.5 (ULTRA, premium — single-take coherence, richer native audio): "bytedance/seedance-2.5/image-to-video", "/reference-to-video", or "/text-to-video"; no fast variant, paid entitlement required. ' +
-      'Omni: "gemini-omni-flash-preview" (only model — 720p, no HQ). ' +
+      'Omni: "gemini-omni-1.1-flash" (only model — 720p, no HQ; the retired "gemini-omni-flash-preview" is still accepted and renders on it). ' +
       'See VALID_MODELS_BY_ENGINE for the full list — passing a string not in the whitelist is rejected with a clear error before the backend is called.',
     ),
   sceneImage: SceneImageSchema.optional(),
@@ -102,7 +105,7 @@ const InputSchema = z.object({
     .max(30)
     .optional()
     .describe(
-      'Render duration in seconds, snapped/clamped per engine: Veo up to 8, ' +
+      'Render duration in seconds, snapped/clamped per engine: ' +
       'Kling up to 15, Seedance 2.0 up to 15, Seedance 2.5 (bytedance/seedance-2.5/* models) up to 30, ' +
       'Omni up to 10. Values above an engine\'s cap are clamped and billed at the clamped duration — ' +
       'check effectiveDuration/durationSnapped in the response. Cost scales linearly: a 30s Seedance 2.5 ' +
@@ -115,7 +118,7 @@ const InputSchema = z.object({
     .describe(
       'Output aspect ratio. Defaults to "9:16" (vertical) — the format UGC ads render in — ' +
       'when omitted, so every engine renders vertical with no landscape fallback. Pass "16:9" ' +
-      'explicitly for landscape. Veo and Omni support only "9:16" / "16:9" (other values are ' +
+      'explicitly for landscape. Omni supports only "9:16" / "16:9" (other values are ' +
       'coerced toward the nearest supported ratio). For image-to-video the sceneImage should ' +
       'already match this ratio, or the engine may pillarbox the frame.',
     ),
@@ -138,9 +141,7 @@ const InputSchema = z.object({
       'Canonical "actor playing the role" description (face DNA, body proportions, signature markers — ' +
       'no clothing or scene context). When set, the engine character block uses this verbatim so the same ' +
       'person reappears across every render_video call for this character. Pass the same string on each ' +
-      'scene to keep the character consistent. Read by kling / seedance; veo intentionally ignores ' +
-      'it (veo gets identity from sceneImage instead — its safety filter trips on detailed physical ' +
-      'descriptions alongside an I2V reference). Cap is 2000 chars (kling further truncates to 800 due ' +
+      'scene to keep the character consistent. Read by kling / seedance / omni. Cap is 2000 chars (kling further truncates to 800 due ' +
       'to its 2500-char total prompt cap); backticks and [IDENTITY] / [/IDENTITY] delimiters are stripped.',
     ),
   seed: z
@@ -151,7 +152,7 @@ const InputSchema = z.object({
     .optional()
     .describe(
       'Optional reproducibility seed, honored only by kling, seedance, and kling motion-control ' +
-      '(veo/omni have no seed parameter and silently ignore it). Re-rendering with the same ' +
+      '(omni has no seed parameter and silently ignores it). Re-rendering with the same ' +
       'seed and inputs reproduces the same generation — useful for comparing prompt iterations. ' +
       'An out-of-range or non-integer value is ignored server-side (render proceeds unseeded, ' +
       'reported as an INVALID_SEED_IGNORED advisory). Do NOT pass a seed alongside ' +
@@ -216,11 +217,11 @@ export const renderVideo: ToolDefinition<Input> = {
     'Cheapest means TOTAL credits for the whole chain, including any generate_image call: seedance text-to-video (36) ' +
     'needs no image, while kling (40) plus a 1-credit image is 41 total. Do not add an image step the engine does not need, ' +
     'and do not pick a pricier engine just to skip a 1-credit step. ' +
-    'Reach for hq / 4k / veo ONLY when the user asks for maximum quality or a capability ' +
+    'Reach for hq / 4k ONLY when the user asks for maximum quality or a capability ' +
     'only that engine has; never infer it from adjectives like "cinematic" or "high quality" in a scene description, ' +
     'which describe the SHOT, not the budget. Duration multiplies cost, so do not raise duration beyond what was asked. ' +
-    'Cost varies by engine, quality, and duration: Veo std=40 / hq=130 (fixed cost), Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline (Veo is fixed regardless of duration) — e.g. a 30s Seedance 2.5 render is 450. ' +
-    'IMPORTANT — sceneImage is REQUIRED for veo/kling and for seedance-faceless. ' +
+    'Cost varies by engine, quality, and duration: Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline — e.g. a 30s Seedance 2.5 render is 450. ' +
+    'IMPORTANT — sceneImage is REQUIRED for kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → pass its imageUrl to render_video as sceneImage, unchanged. ' +
     'After render_video returns, call wait_for_video (polls with backoff up to ~50s) or check_video_status (single poll) ' +
@@ -256,7 +257,7 @@ export const renderVideo: ToolDefinition<Input> = {
     const result = await client.callApi<StartResult>('proxyStartVideoGeneration', body);
     // Surface effective render parameters so the agent knows what actually got rendered
     // and charged. The backend silently snaps duration to engine-specific allowed values
-    // (e.g. 11 → 8 on Veo) — without this surfaced, the agent has no way to know.
+    // (e.g. 11 → 10 on Omni) — without this surfaced, the agent has no way to know.
     const durationWasSnapped =
       typeof result.requestedDuration === 'number' &&
       typeof result.effectiveDuration === 'number' &&

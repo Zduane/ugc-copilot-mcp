@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toolJson } from '../errors.js';
-import { AUDIO_MODES, PROJECT_MODES, RENDER_ENGINES, type ToolDefinition } from './types.js';
+import { AUDIO_MODES, ENGINES, PROJECT_MODES, RETIRED_ENGINE_REPLACEMENTS, type ToolDefinition } from './types.js';
 
 const InputSchema = z.object({
   rawScript: z
@@ -29,9 +29,11 @@ const InputSchema = z.object({
     .optional()
     .describe('Audio treatment override. voiceover = all scenes VO; dialogue = on-camera dialogue allowed; background = music/ambient only.'),
   engine: z
-    .enum(RENDER_ENGINES)
+    // ENGINES, not RENDER_ENGINES: this is a soft hint, so a retired name must not fail the
+    // whole parse — it is forwarded as the engine the backend actually renders it on.
+    .enum(ENGINES)
     .optional()
-    .describe('Target video engine (veo | kling | seedance | omni). Passed to the AI as parsing context — soft hint only, does not enforce duration limits.'),
+    .describe('Target video engine (kling | seedance | omni). Passed to the AI as parsing context — soft hint only, does not enforce duration limits. Retired names (veo, sora) are accepted and treated as their replacements (omni, seedance).'),
 });
 
 type Input = z.infer<typeof InputSchema>;
@@ -55,7 +57,9 @@ export const parseOwnScript: ToolDefinition<Input> = {
     if (input.isFaceless !== undefined) body.isFaceless = input.isFaceless;
     if (input.projectMode) body.projectMode = input.projectMode;
     if (input.audioMode) body.audioMode = input.audioMode;
-    if (input.engine) body.engine = input.engine;
+    if (input.engine) {
+      body.engine = (RETIRED_ENGINE_REPLACEMENTS as Record<string, string>)[input.engine] ?? input.engine;
+    }
     const result = await client.callApi<unknown>('proxyParseOwnScript', body);
     return toolJson(result);
   },
