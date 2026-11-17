@@ -64,7 +64,7 @@ export const FREE_TOOL_INDUSTRIES = [
 
 export const PLATFORMS = ['tiktok', 'instagram', 'youtube'] as const;
 
-// 'omni' = Gemini Omni Flash (GA gemini-omni-1.1-flash) — 720p, 4–10s, 16:9/9:16 only, no HQ tier.
+// 'omni' = Gemini Omni Flash (gemini-omni-1.2-flash) — 720p, 4–10s, 16:9/9:16 only, no HQ tier.
 // Full OpenAPI Engine enum. 'sora' and 'veo' stay here for tools that name an EXISTING
 // render (check_video_status / wait_for_video / fetch_video / stitch_videos): OpenAI shut
 // the Sora API down 2026-09-24 (backend renders 'sora' on Seedance or Kling) and Google
@@ -83,7 +83,7 @@ export const RETIRED_ENGINE_REPLACEMENTS = { sora: 'seedance', veo: 'omni' } as 
 const RETIRED_ENGINE_MESSAGES: Record<string, string> = {
   veo:
     "Veo 3.1 is retired (Google shuts it down 2026-10-22) and can't be used for new renders. " +
-    "Use engine 'omni' with modelName 'gemini-omni-1.1-flash' — image-to-video or text-to-video with native audio, " +
+    "Use engine 'omni' with modelName 'gemini-omni-1.2-flash' — image-to-video or text-to-video with native audio, " +
     '40 credits per 8s — or kling for an exact face from a specific image.',
   sora:
     "Sora 2 is retired (OpenAI shut its API down 2026-09-24) and can't be used for new renders. " +

@@ -131,8 +131,9 @@ describe('Tool input validation', () => {
   it('render_video accepts valid engine/modelName combinations', () => {
     // One canonical example per engine — proves the whitelist exists and is open.
     const cases = [
+      { engine: 'omni', modelName: 'gemini-omni-1.2-flash' },
+      // Older ids: still accepted (the backend aliases them to 1.2).
       { engine: 'omni', modelName: 'gemini-omni-1.1-flash' },
-      // Retired preview id: still accepted (the backend aliases it to the GA model).
       { engine: 'omni', modelName: 'gemini-omni-flash-preview' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/pro/image-to-video' },
       { engine: 'kling', modelName: 'fal-ai/kling-video/v3/4k/image-to-video' },
@@ -179,7 +180,7 @@ describe('Tool input validation', () => {
       const messages = parsed.error.issues.map((i) => i.message).join(' ');
       expect(messages).toMatch(/Veo 3\.1 is retired/);
       expect(messages).toMatch(/engine 'omni'/);
-      expect(messages).toMatch(/gemini-omni-1\.1-flash/);
+      expect(messages).toMatch(/gemini-omni-1\.2-flash/);
     }
   });
 

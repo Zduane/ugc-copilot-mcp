@@ -37,12 +37,14 @@ const VALID_MODELS_BY_ENGINE = {
     'bytedance/seedance-2.5/reference-to-video',
     'bytedance/seedance-2.5/text-to-video',
   ],
-  // Gemini Omni Flash — single 720p tier, no HQ variant. The GA id replaced the preview id
-  // (shut down 2026-10-22); the preview id stays accepted ONLY because the backend aliases it
-  // to the GA model (UGC-Copilot functions/index.js RETIRED_OMNI_MODEL_IDS, applied in
-  // coerceRetiredEngine). Remove it here in the same release that drops that alias — the
-  // backend would otherwise 400 it with ENGINE_MODEL_WHITELIST after passing this check.
-  omni: ['gemini-omni-1.1-flash', 'gemini-omni-flash-preview'],
+  // Gemini Omni Flash — single 720p tier, no HQ variant. gemini-omni-1.2-flash is the model
+  // the backend renders on (since 2026-11-17; Google routes 1.1 to it from 2026-12-03). The
+  // older 1.1 id and the preview id (shut down 2026-10-22) stay accepted ONLY because the
+  // backend aliases them to 1.2 (UGC-Copilot functions/index.js RETIRED_OMNI_MODEL_IDS,
+  // applied in coerceRetiredEngine). Remove one here in the same release that drops its
+  // alias — the backend would otherwise 400 it with ENGINE_MODEL_WHITELIST after passing
+  // this check.
+  omni: ['gemini-omni-1.2-flash', 'gemini-omni-1.1-flash', 'gemini-omni-flash-preview'],
 } as const;
 
 // The imageUrl generate_image returns. The backend reads that stored image directly —
@@ -82,7 +84,7 @@ const InputSchema = z.object({
       'Engine: seedance (low-cost, duration-scaled; text-to-video or faceless image-to-video), kling (image-to-video — keeps the person in your image), omni (Gemini Omni Flash — fastest; 720p with native audio, image-to-video or text-to-video, 4-10s, 16:9/9:16 only, no HQ). ' +
       'Sora is retired (OpenAI shut its API down 2026-09-24) and Veo 3.1 is retired (Google shuts it down 2026-10-22); neither is offered. ' +
       'Cost for an 8-SECOND render, cheapest first (every engine scales linearly with duration): ' +
-      'seedance std (36) < kling std / omni (40) < kling hq (63) < seedance hq (70) < seedance 2.5 ultra (120 launch price, 150 regular) < kling 4k (163). ' +
+      'seedance std (36) < kling std / omni (40) < kling hq (63) < seedance hq (70) < seedance 2.5 ultra (120) < kling 4k (163). ' +
       'Kling motion-control bills its own table: std 44 / pro 88 at 8s. ' +
       'Pick the cheapest that meets the stated need unless the user chose otherwise.',
     ),
@@ -94,7 +96,7 @@ const InputSchema = z.object({
       '"/4k/image-to-video" (ULTRA, native 4K), or "/standard/motion-control" / "/pro/motion-control" (clone-video only). ' +
       'Seedance: "bytedance/seedance-2.0/image-to-video" (HQ) or "/fast/image-to-video" (FAST); also reference-to-video and text-to-video variants. ' +
       'Seedance 2.5 (ULTRA, premium — single-take coherence, richer native audio): "bytedance/seedance-2.5/image-to-video", "/reference-to-video", or "/text-to-video"; no fast variant, paid entitlement required. ' +
-      'Omni: "gemini-omni-1.1-flash" (only model — 720p, no HQ; the retired "gemini-omni-flash-preview" is still accepted and renders on it). ' +
+      'Omni: "gemini-omni-1.2-flash" (only model — 720p, no HQ; the older "gemini-omni-1.1-flash" and "gemini-omni-flash-preview" ids are still accepted and render on it). ' +
       'See VALID_MODELS_BY_ENGINE for the full list — passing a string not in the whitelist is rejected with a clear error before the backend is called.',
     ),
   sceneImage: SceneImageSchema.optional(),
@@ -220,7 +222,7 @@ export const renderVideo: ToolDefinition<Input> = {
     'Reach for hq / 4k ONLY when the user asks for maximum quality or a capability ' +
     'only that engine has; never infer it from adjectives like "cinematic" or "high quality" in a scene description, ' +
     'which describe the SHOT, not the budget. Duration multiplies cost, so do not raise duration beyond what was asked. ' +
-    'Cost varies by engine, quality, and duration: Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 launch price (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline — e.g. a 30s Seedance 2.5 render is 450. ' +
+    'Cost varies by engine, quality, and duration: Kling std=32 / hq=50 / 4k=130 (6.4s baseline), Kling motion-control std=35 / pro=70 (6.4s baseline, its own table), Seedance std=18 / hq=35 / 2.5-ultra=60 (4s baseline), Omni std=40 (8s baseline). Cost scales linearly with duration off each engine baseline — e.g. a 30s Seedance 2.5 render is 450. ' +
     'IMPORTANT — sceneImage is REQUIRED for kling and for seedance-faceless. ' +
     'If you do not have an image, the typical chain is: ' +
     'generate_image (with a useful productDescription) → pass its imageUrl to render_video as sceneImage, unchanged. ' +
